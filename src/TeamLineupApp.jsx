@@ -82,14 +82,62 @@ const SOCK_COLORS = [SCHOOL_MAROON, SCHOOL_GOLD, "#F1EFE7", "#2F2A2E", "#F2A93B"
 const SKIN_TONES = ["#FFE0BD", "#F0C29B", "#E0A978", "#C68B59", "#8D5524", "#5C3A21"];
 const HAIR_COLORS = ["#2B2320", "#5C3A21", "#8B5E34", "#D9A441", "#B0433E", "#B0B0B0", "#E8B4D8"];
 
+// Each move carries `say` as well as `cue`: the figure is front-facing and
+// small, so several of these read as "an arm moved a bit" no matter how they
+// are drawn. The voice is what actually teaches the move; the drawing marks
+// which one you're on. `hold` is the minimum time on screen — a move never
+// advances before the voice has finished its sentence either.
+// `switchSides` moves get a chime and a spoken "Switch sides" at the midpoint.
 const STRETCH_MOVES = [
-  { key: "reach", label: "Reach Up", cue: "Reach both arms overhead and hold.", benefit: "Good for: shoulders & spine", pose: { torso: 0, armR: -150, armL: 150 } },
-  { key: "side", label: "Side Stretch", cue: "Lean gently to one side, feel the stretch.", benefit: "Good for: obliques & lower back", pose: { torso: -6, armR: -95, armL: 20 } },
-  { key: "twist", label: "Twist", cue: "Rotate your upper body side to side.", benefit: "Good for: core & spine mobility", pose: { torso: 6, armR: -20, armL: 95 } },
-  { key: "toe", label: "Toe Touch", cue: "Reach toward your toes, knees soft.", benefit: "Good for: hamstrings & lower back", pose: { torso: 0, armR: 55, armL: -55 } },
-  { key: "circles", label: "Arm Circles", cue: "Big slow circles with both arms.", benefit: "Good for: shoulders & warm-up", pose: { torso: 0, armR: -90, armL: 90 } },
-  { key: "shoulders", label: "Shoulder Roll", cue: "Roll your shoulders up, back, and down.", benefit: "Good for: neck & upper back", pose: { torso: 0, armR: -40, armL: 40 } },
-  { key: "crossbody", label: "Cross-Body Reach", cue: "Reach one arm across your chest.", benefit: "Good for: shoulders & upper back", pose: { torso: -4, armR: -60, armL: -40 } },
+  { key: "reach", label: "Reach Up", hold: 20, benefit: "Good for: shoulders & spine",
+    cue: "Reach both arms overhead and hold.",
+    say: "Reach Up. Stand tall, feet hip-width apart. Reach both arms straight overhead and stretch as high as you can. Keep breathing.",
+    pose: { torso: 0, armR: -150, armL: 150 } },
+
+  { key: "side", label: "Side Stretch", hold: 24, switchSides: true, benefit: "Good for: obliques & lower back",
+    cue: "Lean gently to one side, then the other.",
+    say: "Side Stretch. Keep one arm overhead and lean slowly to the opposite side. You should feel it along your ribs.",
+    pose: { torso: -8, armR: -150, armL: 20 } },
+
+  { key: "twist", label: "Twist", hold: 20, benefit: "Good for: core & spine mobility",
+    cue: "Rotate your upper body side to side.",
+    say: "Twist. Plant your feet and rotate your upper body slowly to one side, then the other. Let your arms swing loose, and keep your hips facing forward.",
+    pose: { torso: 6, armR: -20, armL: 95 } },
+
+  { key: "toe", label: "Toe Touch", hold: 20, benefit: "Good for: hamstrings & lower back",
+    cue: "Reach toward your toes, knees soft.",
+    say: "Toe Touch. Feet apart, knees soft — not locked. Fold forward from your hips and reach down toward your toes. Only go as far as feels easy, and let your head hang.",
+    pose: { torso: 0, armR: 55, armL: -55 } },
+
+  { key: "circles", label: "Arm Circles", hold: 18, benefit: "Good for: shoulders & warm-up",
+    cue: "Big slow circles with both arms.",
+    say: "Arm Circles. Hold both arms straight out to your sides. Make big, slow circles forward. After a few, reverse and circle backward.",
+    pose: { torso: 0, armR: -90, armL: 90 } },
+
+  { key: "shoulders", label: "Shoulder Roll", hold: 15, benefit: "Good for: neck & upper back",
+    cue: "Roll your shoulders up, back, and down.",
+    say: "Shoulder Roll. Let your arms hang. Roll your shoulders up toward your ears, then back, then down. Slow and steady, and breathe out as they drop.",
+    pose: { torso: 0, armR: -40, armL: 40 } },
+
+  { key: "crossbody", label: "Cross-Body Reach", hold: 20, switchSides: true, benefit: "Good for: shoulders & upper back",
+    cue: "Reach one arm across your chest.",
+    say: "Cross-Body Reach. Bring one arm straight across your chest. Use your other hand to hold it close, and keep that shoulder down.",
+    pose: { torso: -4, armR: -60, armL: -40 } },
+
+  { key: "quad", label: "Quad Stretch", hold: 24, switchSides: true, benefit: "Good for: quads & hip flexors",
+    cue: "Heel up behind you, knee pointing down.",
+    say: "Quad Stretch. Hold a wall or a teammate for balance. Bend one knee and bring that heel up behind you toward your glute. Keep your knees together and stand tall.",
+    pose: { torso: 0, armR: -70, armL: 30, legR: 24 } },
+
+  { key: "lunge", label: "Forward Lunge", hold: 24, switchSides: true, benefit: "Good for: hip flexors & glutes",
+    cue: "Step forward, bend the front knee.",
+    say: "Forward Lunge. Step one foot well forward and bend that knee over your ankle. Keep your back leg straight and your chest up, and sink down slowly.",
+    pose: { torso: 4, armR: -30, armL: 30, legL: -30, legR: 22 } },
+
+  { key: "calf", label: "Calf Stretch", hold: 20, switchSides: true, benefit: "Good for: calves & ankles",
+    cue: "Back heel down, lean into the front knee.",
+    say: "Calf Stretch. Step one foot back and press that heel flat into the ground, back leg straight. Lean forward into your front knee until you feel it in your calf.",
+    pose: { torso: 6, armR: -35, armL: 35, legL: -20, legR: 14 } },
 ];
 
 const RULES_QA = [
@@ -830,18 +878,26 @@ function PlayerAvatar({ number, size = 40, waving = false, stretching = false, m
     : stretching
     ? { animation: "stretchArmLeft 3.2s ease-in-out infinite", transformOrigin: "20px 30px" }
     : {};
+  // Legs only move when a pose asks them to, so every pose written before
+  // they were posable still renders exactly as it did.
+  const legRStyle = manualPose?.legR
+    ? { transform: `rotate(${manualPose.legR}deg)`, transformOrigin: "47.5px 60px", transition: "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)" }
+    : {};
+  const legLStyle = manualPose?.legL
+    ? { transform: `rotate(${manualPose.legL}deg)`, transformOrigin: "32.5px 60px", transition: "transform 0.9s cubic-bezier(0.4, 0, 0.2, 1)" }
+    : {};
 
   return (
     <svg width={size} height={size * 1.1} viewBox="0 0 80 88" style={{ flexShrink: 0, overflow: "visible" }}>
       <ellipse cx="40" cy="84" rx="20" ry="3" fill="rgba(0,0,0,0.18)" />
-      <rect x="28" y="58" width="9" height="20" rx="4" fill="#2b2f33" />
-      <rect x="43" y="58" width="9" height="20" rx="4" fill="#2b2f33" />
-      {sockColor && (
-        <>
-          <rect x="28" y="69" width="9" height="8" rx="3" fill={sockColor} />
-          <rect x="43" y="69" width="9" height="8" rx="3" fill={sockColor} />
-        </>
-      )}
+      <g style={legLStyle}>
+        <rect x="28" y="58" width="9" height="20" rx="4" fill="#2b2f33" />
+        {sockColor && <rect x="28" y="69" width="9" height="8" rx="3" fill={sockColor} />}
+      </g>
+      <g style={legRStyle}>
+        <rect x="43" y="58" width="9" height="20" rx="4" fill="#2b2f33" />
+        {sockColor && <rect x="43" y="69" width="9" height="8" rx="3" fill={sockColor} />}
+      </g>
       <g style={torsoStyle}>
         <rect x="18" y="34" width="44" height="32" rx="14" fill={color} />
         <text x="40" y="55" textAnchor="middle" fontFamily="Space Mono, monospace" fontWeight="700" fontSize="15" fill="#10151A">
@@ -1676,33 +1732,103 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
   const [countdown, setCountdown] = useState(3);
   const [voiceOn, setVoiceOn] = useState(true);
 
-  useEffect(() => {
-    if (playingIndex < 0) return;
-    if (playingIndex >= selectedMoves.length) return;
-    setCountdown(3);
-    const tick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
-    const advance = setTimeout(() => setPlayingIndex((i) => i + 1), 3000);
-    return () => {
-      clearInterval(tick);
-      clearTimeout(advance);
-    };
-  }, [playingIndex, selectedMoves.length]);
+  // A move ends when BOTH the voice has finished its sentence and the hold
+  // time has run out. Either alone was the old bug: a fixed 3s timer cut
+  // every sentence off mid-word, and left no time to actually stretch.
+  const spokeRef = useRef(false);
+  const heldRef = useRef(false);
+  const advanceRef = useRef(null);
+  // Read inside timers so muting mid-move doesn't restart the move.
+  const voiceOnRef = useRef(voiceOn);
 
-  // Speak the move name + cue out loud when a new move starts
   useEffect(() => {
-    if (!voiceOn) return;
+    voiceOnRef.current = voiceOn;
+    if (!voiceOn && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {
+        /* nothing to cancel */
+      }
+      // cancel() does not reliably fire onend, so muting must not strand a
+      // move that is still waiting on the voice.
+      spokeRef.current = true;
+      if (advanceRef.current) advanceRef.current();
+    }
+  }, [voiceOn]);
+
+  useEffect(() => {
     if (playingIndex < 0 || playingIndex >= selectedMoves.length) return;
     const move = STRETCH_MOVES.find((m) => m.key === selectedMoves[playingIndex]);
-    if (!move || !("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(`${move.label}. ${move.cue}`);
-      utter.rate = 0.95;
-      window.speechSynthesis.speak(utter);
-    } catch (e) {
-      /* speech not available, fail silently */
+    if (!move) return;
+
+    spokeRef.current = false;
+    heldRef.current = false;
+    setCountdown(move.hold);
+
+    const advance = () => {
+      if (spokeRef.current && heldRef.current) setPlayingIndex((i) => i + 1);
+    };
+    advanceRef.current = advance;
+
+    playTone(660, 0, 0.18, "triangle", 0.12);
+
+    if (voiceOnRef.current && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(move.say);
+        utter.rate = 0.85;
+        utter.onend = () => {
+          spokeRef.current = true;
+          advance();
+        };
+        utter.onerror = () => {
+          spokeRef.current = true;
+          advance();
+        };
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        spokeRef.current = true; // no voice here — the text carries it
+      }
+    } else {
+      spokeRef.current = true;
     }
-  }, [playingIndex, voiceOn, selectedMoves]);
+
+    const tick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
+    const held = setTimeout(() => {
+      heldRef.current = true;
+      advance();
+    }, move.hold * 1000);
+
+    // Some browsers drop onend entirely (a backgrounded tab, a long
+    // utterance). Without this the warm-up would sit on one move forever.
+    const voiceCap = setTimeout(() => {
+      spokeRef.current = true;
+      advance();
+    }, move.hold * 1000 + 15000);
+
+    let midway;
+    if (move.switchSides) {
+      midway = setTimeout(() => {
+        playTone(880, 0, 0.14, "triangle", 0.1);
+        if (voiceOnRef.current && "speechSynthesis" in window) {
+          try {
+            const sw = new SpeechSynthesisUtterance("Switch sides.");
+            sw.rate = 0.85;
+            window.speechSynthesis.speak(sw); // queues behind the main line
+          } catch (e) {
+            /* text only */
+          }
+        }
+      }, (move.hold / 2) * 1000);
+    }
+
+    return () => {
+      clearInterval(tick);
+      clearTimeout(held);
+      clearTimeout(voiceCap);
+      if (midway) clearTimeout(midway);
+    };
+  }, [playingIndex, selectedMoves]);
 
   useEffect(() => {
     return () => {
@@ -1722,6 +1848,11 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
     setTimeout(() => setJustDrawn([]), 1400);
   };
 
+  const totalHoldSeconds = selectedMoves.reduce(
+    (sum, key) => sum + (STRETCH_MOVES.find((m) => m.key === key)?.hold || 0),
+    0
+  );
+
   const finished = playingIndex >= 0 && playingIndex >= selectedMoves.length;
 
   return (
@@ -1733,8 +1864,13 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
               Pick Your Moves
             </div>
             <div style={{ color: "var(--chalk-dim)", fontSize: 14, textAlign: "center", marginBottom: 16 }}>
-              Choose at least {MIN_STRETCH_MOVES} — pick more for a fuller warm-up.
+              Pick 3 or 4 for a solid warm-up — more if you have time.
             </div>
+            {selectedMoves.length > 0 && (
+              <div style={{ color: "var(--sky)", fontSize: 13, textAlign: "center", marginBottom: 12 }}>
+                {selectedMoves.length} selected · about {Math.max(1, Math.round(totalHoldSeconds / 60))} min
+              </div>
+            )}
             <button onClick={pickGoodMix} disabled={selectedMoves.length >= STRETCH_MOVES.length} style={{ ...styles.chip, width: "100%", marginBottom: 12, textAlign: "center", color: "var(--amber)", borderColor: "rgba(242,169,59,0.4)", opacity: selectedMoves.length >= STRETCH_MOVES.length ? 0.4 : 1 }}>
               🎴 Draw 3 Moves
             </button>
@@ -1770,7 +1906,21 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
             <button
               style={{ ...styles.primaryBtn, width: "100%", opacity: selectedMoves.length >= MIN_STRETCH_MOVES ? 1 : 0.4 }}
               disabled={selectedMoves.length < MIN_STRETCH_MOVES}
-              onClick={() => setPlayingIndex(0)}
+              onClick={() => {
+                // iOS only allows speech that begins inside a tap. This silent
+                // utterance unlocks speechSynthesis so the moves, which start
+                // from a timer, can speak at all.
+                if (voiceOn && "speechSynthesis" in window) {
+                  try {
+                    const warm = new SpeechSynthesisUtterance(" ");
+                    warm.volume = 0;
+                    window.speechSynthesis.speak(warm);
+                  } catch (e) {
+                    /* no voice on this device */
+                  }
+                }
+                setPlayingIndex(0);
+              }}
             >
               {selectedMoves.length < MIN_STRETCH_MOVES ? `Pick ${MIN_STRETCH_MOVES - selectedMoves.length} more` : "Start"}
             </button>
@@ -1817,7 +1967,7 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
                     />
                   </div>
                   <div className="lineup-display" style={{ textAlign: "center", fontSize: 36, color: "var(--amber)", margin: "4px 0" }}>
-                    {countdown > 0 ? countdown : "Go!"}
+                    {countdown > 0 ? `${countdown}s` : "Hold…"}
                   </div>
                   <div style={styles.cueBox}>{current?.cue}</div>
                   <div style={{ color: "var(--sky)", fontSize: 14, textAlign: "center" }}>{current?.benefit}</div>
