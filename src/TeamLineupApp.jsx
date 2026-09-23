@@ -379,12 +379,25 @@ function stopVoice() {
   }
 }
 
-function getLast7Days() {
+// Cheers, crowns, points and the quest start over every Monday (team time),
+// so a player who joins mid-season, or had a slow week, isn't locked out of
+// the top of the board by whoever started first.
+function weekStartKey(key = todayKey()) {
+  const dow = new Date(`${key}T12:00:00Z`).getUTCDay(); // 0 = Sunday
+  return shiftKey(key, (dow + 6) % 7);
+}
+function getThisWeekDays() {
   const today = todayKey();
+  const start = weekStartKey(today);
   const days = [];
-  for (let i = 0; i < 7; i++) days.push(shiftKey(today, i));
+  for (let i = 0; i < 7; i++) {
+    const k = shiftKey(today, i);
+    if (k < start) break;
+    days.push(k);
+  }
   return days;
 }
+const inThisWeek = (ts) => dateKey(new Date(ts)) >= weekStartKey();
 
 // Personal streak badges (private, shown only on my own screen)
 const STREAK_BADGES = [
@@ -430,13 +443,13 @@ function getCoachQuote() {
 }
 
 function computeChallengeProgress(players, cheers, aggregateCheckins) {
-  const days = getLast7Days();
+  const days = getThisWeekDays();
   const total = Math.max(players.length, 1);
   const weeklyCheers = cheers.filter((c) => days.includes(dateKey(new Date(c.ts)))).length;
   const cheerTarget = Math.max(total * 2, 4);
   const weeklyCheckins = days.reduce((sum, d) => sum + (aggregateCheckins[d] || 0), 0);
   const checkinTarget = Math.max(total * 3, 6);
-  const crownClub = players.filter((p) => cheers.filter((c) => c.from === p).length >= 5).length;
+  const crownClub = players.filter((p) => cheers.filter((c) => c.from === p && inThisWeek(c.ts)).length >= 5).length;
   const crownTarget = Math.max(Math.ceil(total / 2), 1);
   const allComplete = weeklyCheers >= cheerTarget && weeklyCheckins >= checkinTarget && crownClub >= crownTarget;
   return { weeklyCheers, cheerTarget, weeklyCheckins, checkinTarget, crownClub, crownTarget, allComplete };
@@ -468,6 +481,7 @@ function loadDefaultTeamState() {
     seasonSeed: null, // which SEASON_ID has already been merged into schedule
     coachInbox: [], // { id, message, ts } — fully anonymous, no sender attached
     teamWall: [], // { id, from, message, ts } — public team-wide shoutouts, visible to everyone
+    week: weekStartKey(), // Monday the current points/quest progress belong to
     kudos: [], // { id, icon, ts } — no sender, no target, never counted
     // mindWall is intentionally gone: an unmoderated anonymous wall between
     // minors needed an adult in the loop that this app cannot provide, and it
@@ -502,6 +516,15 @@ function mergeTeamState(teamState) {
     const existing = new Set((merged.schedule || []).map((g) => g.id));
     merged.schedule = [...(merged.schedule || []), ...SEASON_SCHEDULE.filter((g) => !existing.has(g.id))];
     merged.seasonSeed = SEASON_ID;
+  }
+  // First load in a new week wipes the week's points and quest progress; the
+  // next save writes that back for everyone. Cheers stay (they're filtered
+  // to this week when shown and counted).
+  const thisWeek = weekStartKey();
+  if (teamState.week !== thisWeek) {
+    merged.week = thisWeek;
+    merged.socialPoints = {};
+    merged.soccerProgress = {};
   }
   return merged;
 }
@@ -776,7 +799,7 @@ export default function TeamLineupApp() {
       showToast(`That's ${CHEER_DAILY_LIMIT} cheers today — send more tomorrow!`);
       return false;
     }
-    const prevCount = team.cheers.filter((c) => c.from === me).length;
+    const prevCount = team.cheers.filter((c) => c.from === me && inThisWeek(c.ts)).length;
     const nextCount = prevCount + 1;
     const next = {
       ...team,
@@ -1624,7 +1647,8 @@ function Onboarding({ takenNumbers, onComplete, onCoachSignIn }) {
 // who or what mood. The inbox is listed here and nowhere else.
 function CoachView({ team, onSignOut, onRefresh, onAddGame, onAddResult, onPostWall, onReplyWall }) {
   const [refreshing, setRefreshing] = useState(false);
-  const days = getLast7Days();
+  // Same Monday-to-Sunday week as the players' mission, ranking and quest.
+  const days = getThisWeekDays();
   const roster = team.players.length;
   const today = todayKey();
   const inbox = team.coachInbox || [];
@@ -2241,6 +2265,7 @@ function CheerTab({ me, cheers, cheerMsg, setCheerMsg, onSend }) {
   const left = Math.max(CHEER_DAILY_LIMIT - sentToday, 0);
   const canSend = (cheerMsg.trim() || icon) && left > 0;
   const iconOf = (key) => (KUDOS.find((k) => k.key === key) || {}).icon || "";
+  const weekCheers = cheers.filter((c) => inThisWeek(c.ts));
   const send = async () => {
     if (await onSend(icon)) setIcon(null);
   };
@@ -2305,13 +2330,13 @@ function CheerTab({ me, cheers, cheerMsg, setCheerMsg, onSend }) {
         {left === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginTop: 8, textAlign: "center" }}>That's today's 3 — more tomorrow!</div>}
       </div>
       <div style={{ color: "var(--chalk-dim)", fontSize: 13, lineHeight: 1.5, margin: "10px 4px 0" }}>
-        👑 Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> earns you a bigger crown — see your tier in the Ranking tab.
+        👑 Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> this week earns you a bigger crown — see your tier in the Ranking tab. Crowns start over every Monday.
       </div>
 
-      <div style={{ color: "var(--chalk-dim)", fontSize: 13, margin: "20px 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>Recent Cheers</div>
+      <div style={{ color: "var(--chalk-dim)", fontSize: 13, margin: "20px 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>This Week's Cheers</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {cheers.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No cheers yet. Send the first one!</div>}
-        {cheers.slice(0, 20).map((c, i) => {
+        {weekCheers.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No cheers yet this week. Send the first one!</div>}
+        {weekCheers.slice(0, 20).map((c, i) => {
           const mine = c.from === me;
           return (
             <div key={i} style={{ ...styles.cheerRow, display: "flex", gap: 12, alignItems: "flex-start", borderColor: mine ? "rgba(242,169,59,0.35)" : "var(--line)" }}>
@@ -2374,7 +2399,7 @@ function ChallengeTab({ players, cheers, aggregateCheckins, unlocked, teamPct, m
         <div style={styles.card}>
           <div className="lineup-display" style={{ fontSize: 22, color: "var(--turf-bright)" }}>This Week's Co-op Mission</div>
           <div style={{ color: "var(--chalk-dim)", fontSize: 15, marginTop: 6, marginBottom: 18 }}>
-            These track automatically from what the team is already doing — nothing to check off by hand.
+            These track automatically from what the team is already doing — nothing to check off by hand. A new mission starts every Monday.
           </div>
           <GoalBar emoji="📣" title="Team Cheer Power" subtitle="Total cheers sent by anyone on the team this week." current={progress.weeklyCheers} target={progress.cheerTarget} />
           <GoalBar emoji="✅" title="Full House Check-Ins" subtitle="Combined check-ins across the whole team this week (still anonymous)." current={progress.weeklyCheckins} target={progress.checkinTarget} />
@@ -2989,7 +3014,7 @@ function SoccerSeries({ me, soccerProgress, onPassLevel }) {
     <div style={{ ...styles.card, marginTop: 14 }}>
       <div style={{ color: "var(--chalk)", fontSize: 19, fontWeight: 700, marginBottom: 2 }}>🛡️ Knight&apos;s Quest</div>
       <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 14 }}>
-        Clear each level to ride further. Reach the castle to be named Golden Knight.
+        Clear each level to ride further. Reach the castle to be named Golden Knight. The quest starts over every Monday.
       </div>
       <QuestTrail level={myLevel} total={SOCCER_LEVELS.length} />
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -3377,14 +3402,14 @@ function WallPost({ post, me, onReply }) {
 
 function LeaderboardTab({ points, players, cheers, avatarStyles, aggregateCheckins }) {
   const ranked = [...players].sort((a, b) => (points[b] || 0) - (points[a] || 0));
-  const cheerCountOf = (p) => cheers.filter((c) => c.from === p).length;
+  const cheerCountOf = (p) => cheers.filter((c) => c.from === p && inThisWeek(c.ts)).length;
   const weeklyBuckets = getWeeklyCheckinBuckets(aggregateCheckins, 12);
   const maxBucket = Math.max(...weeklyBuckets, 1);
   return (
     <div>
       <div style={styles.card}>
-        <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 4 }}>Cheer &amp; Challenge Ranking</div>
-        <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>Has nothing to do with check-ins — every 5 cheers grows your crown.</div>
+        <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 4 }}>This Week's Ranking</div>
+        <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>Everyone starts from zero every Monday. Has nothing to do with check-ins — every 5 cheers this week grows your crown.</div>
         {ranked.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No records yet.</div>}
         {ranked.map((p, i) => {
           const count = cheerCountOf(p);

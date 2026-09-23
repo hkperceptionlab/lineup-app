@@ -108,6 +108,17 @@ Supabase Auth with row-level security, where the check runs server-side — a
 worthwhile trade only if the data ever becomes worth it. Made-up numbers and
 "Let's go!" are not.
 
+### Everything competitive is weekly
+
+Cheers shown, crowns, ranking points, the co-op mission and Knight's Quest
+levels all belong to one Monday-to-Sunday week (team time) and start over
+every Monday. A cumulative board would belong to whoever started first; a
+player who joins in October should be able to top it that week.
+
+There is no scheduled job: the team state carries `week`, and the first load
+in a new week clears `socialPoints` and `soccerProgress`, which the next save
+writes back. Old cheers stay stored but are filtered to the current week.
+
 ### The coach has a separate door
 
 "Coach? Sign in here" on the welcome screen takes a coach word instead of a
