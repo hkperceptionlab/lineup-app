@@ -1224,6 +1224,7 @@ function Onboarding({ takenNumbers, onComplete }) {
   const [countdown, setCountdown] = useState(3);
   const [stretchDone, setStretchDone] = useState(false);
   const [joinError, setJoinError] = useState(null);
+  const [typed, setTyped] = useState("");
 
   const avatarPreview = <PlayerAvatar number={number || "?"} size={100} glasses={glasses} furStyle={furStyle} bow={bow} bowColor={bowColor} skinTone={skinTone} hairColor={hairColor} sockColor={sockColor} color={jerseyColor} />;
 
@@ -1309,6 +1310,17 @@ function Onboarding({ takenNumbers, onComplete }) {
     const rollNumber = () => {
       const free = Array.from({ length: 99 }, (_, i) => String(i + 1)).filter((n) => !takenNumbers.includes(n) && n !== number);
       if (free.length) setNumber(free[Math.floor(Math.random() * free.length)]);
+      setTyped("");
+    };
+    // A plain text field as a second way in: if the grid ever fails to take a
+    // tap on some phone, typing still works, so nobody is stuck at sign-up.
+    const typedNum = typed ? String(Number(typed)) : "";
+    const typedProblem = !typed ? null : Number(typed) < 1 ? "Pick 1–99." : takenNumbers.includes(typedNum) ? `#${typedNum} is taken.` : null;
+    const onType = (e) => {
+      const digits = e.target.value.replace(/[^0-9]/g, "").slice(0, 2);
+      setTyped(digits);
+      const n = digits ? String(Number(digits)) : "";
+      if (n && Number(n) >= 1 && !takenNumbers.includes(n)) setNumber(n);
     };
     return (
       <StepShell
@@ -1334,7 +1346,22 @@ function Onboarding({ takenNumbers, onComplete }) {
         <button type="button" onClick={rollNumber} style={{ ...styles.chip, width: "100%", marginBottom: 12, textAlign: "center", color: "var(--amber)", borderColor: "rgba(242,169,59,0.4)", touchAction: "manipulation" }}>
           🎲 Pick one for me
         </button>
-        <NumberGrid takenNumbers={takenNumbers} selected={number} onSelect={setNumber} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <label htmlFor="typed-number" style={{ color: "var(--chalk-dim)", fontSize: 14, whiteSpace: "nowrap" }}>Or type one:</label>
+          <input
+            id="typed-number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="off"
+            value={typed}
+            onChange={onType}
+            placeholder="1–99"
+            style={{ ...styles.input, flex: 1, padding: "10px 14px", fontFamily: "'Space Mono', monospace", fontSize: 18 }}
+          />
+        </div>
+        {typedProblem && <div style={{ color: "var(--danger)", fontSize: 14, textAlign: "center", marginTop: -6, marginBottom: 10 }}>{typedProblem}</div>}
+        <NumberGrid takenNumbers={takenNumbers} selected={number} onSelect={(n) => { setNumber(n); setTyped(""); }} />
         <div style={{ color: "var(--chalk-dim)", fontSize: 13, textAlign: "center", marginTop: 8 }}>Grayed-out numbers are already taken.</div>
       </StepShell>
     );
