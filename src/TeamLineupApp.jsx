@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
    - Mood is visible to the player only (stored locally, never shared)
    - The team only sees an anonymous count of who checked in / stretched today
    - Points/crowns come only from cheering, never from check-in status
-   - Jersey numbers instead of real names
+   - A made-up player number instead of a name (not the real jersey number)
 ───────────────────────────────────────────── */
 
 const TEAM_NAME = "MPrep Girls’ Soccer JV";
@@ -35,9 +35,9 @@ const SEASON_SCHEDULE = [
   { id: "s26-1107-portsmouth", opponent: "Portsmouth Abbey School", date: "2026-11-07", time: "14:30", location: "Portsmouth Abbey School", homeAway: "away", result: null },
 ];
 
-// Points attach to only the first few cheers a day, so the leaderboard can't
-// be farmed by firing the same message at one teammate over and over.
-const CHEER_DAILY_LIMIT = 5;
+// Cheers go to the whole team, so the cap is per sender: a few a day, or the
+// crowns would belong to whoever typed "ok" thirty times.
+const CHEER_DAILY_LIMIT = 3;
 
 const FONT_IMPORT_URL =
   "https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap";
@@ -72,7 +72,7 @@ const COACH_PRESETS = [
   "Something about the team feels off",
 ];
 
-const QUICK_CHEERS = ["Let's go!", "Great job today", "We got this tomorrow", "It's okay, next time"];
+const QUICK_CHEERS = ["Let's go, Knights!", "Great job today, team", "We got this tomorrow", "Proud of this team"];
 
 // Marianapolis colors first. The maroon is lifted a little off the true
 // crest maroon so the kit still reads against the dark background.
@@ -172,38 +172,7 @@ const MENTAL_TIPS = [
   { q: "What should I actually focus on during a game?", a: "Focus on what you can control — your effort, your positioning, your next decision — instead of things you can't, like the score, the ref's calls, or what a teammate did." },
   { q: "How can visualization help?", a: "Spend a minute before a game picturing yourself making a clean pass, a good tackle, or a confident touch. Mentally rehearsing success can make it easier to execute under pressure." },
   { q: "What if I'm in a slump?", a: "Zoom out to a shorter timeframe — instead of judging the whole season, set one small, achievable goal for just the next training session or game." },
-  { q: "Does talking to teammates actually help nerves?", a: "Yes — voicing what you're feeling to a teammate or coach (or anonymously on the team's mind wall) tends to lower anxiety more than holding it in." },
-];
-
-const TRIVIA_QUESTIONS = [
-  { question: "What's a \"clean sheet\"?", choices: ["A goalkeeper's jersey", "A match with no goals allowed", "A yellow card record"], correctIndex: 1 },
-  { question: "What does \"offside\" mean?", choices: ["Attacker ahead of the last defender when the ball is played", "A foul inside the penalty box", "Kicking the ball out of bounds"], correctIndex: 0 },
-  { question: "What's a \"nutmeg\"?", choices: ["A type of corner kick", "Passing the ball through an opponent's legs", "A goalkeeper save"], correctIndex: 1 },
-  { question: "What's a \"hat-trick\"?", choices: ["Scoring 3 goals in one match", "Winning 3 games in a row", "A penalty kick technique"], correctIndex: 0 },
-  { question: "What's a \"through ball\"?", choices: ["A ball kicked out of play", "A pass that splits the defense toward goal", "A header on goal"], correctIndex: 1 },
-  { question: "What's the \"box\" in soccer?", choices: ["The dugout", "The penalty area", "The center circle"], correctIndex: 1 },
-  { question: "What's a \"brace\"?", choices: ["A type of shin guard", "Scoring 2 goals in a match", "A defensive formation"], correctIndex: 1 },
-  { question: "What does \"extra time\" mean?", choices: ["Added stoppage time in a half", "Overtime periods after a draw", "The warm-up before kickoff"], correctIndex: 1 },
-  { question: "What's a \"derby\"?", choices: ["A match between local rivals", "A friendly pre-season game", "A tournament final"], correctIndex: 0 },
-  { question: "What's an \"assist\"?", choices: ["Stopping a shot on goal", "A pass that leads directly to a goal", "Winning a free kick"], correctIndex: 1 },
-  { question: "What's an \"own goal\"?", choices: ["A goal scored into your own net", "A goal from outside the box", "A disallowed goal"], correctIndex: 0 },
-  { question: "What does a red card mean?", choices: ["A warning", "The player is sent off", "A penalty is awarded"], correctIndex: 1 },
-  { question: "What does a yellow card mean?", choices: ["An official caution/warning", "The player is sent off", "A goal is disallowed"], correctIndex: 0 },
-  { question: "What's a \"free kick\"?", choices: ["A kick to restart play after a foul", "A kick taken from the corner", "The opening kickoff"], correctIndex: 0 },
-  { question: "What's a \"corner kick\"?", choices: ["A kick from midfield", "A restart when the ball crosses the goal line off a defender", "A kick taken after a handball"], correctIndex: 1 },
-  { question: "What's a \"throw-in\"?", choices: ["Restarting play by hand after the ball crosses the touchline", "A goalkeeper's distribution", "A penalty kick alternative"], correctIndex: 0 },
-  { question: "What position is a \"striker\"?", choices: ["A defender", "A forward focused on scoring", "The goalkeeper"], correctIndex: 1 },
-  { question: "What's a \"sweeper\"?", choices: ["A defender who plays behind the back line", "A midfielder who takes corners", "A backup goalkeeper"], correctIndex: 0 },
-  { question: "What's a \"counter-attack\"?", choices: ["A slow build-up play", "A fast attack right after winning the ball", "A defensive substitution"], correctIndex: 1 },
-  { question: "What does \"possession\" mean?", choices: ["Which team controls the ball", "The number of goals scored", "The starting lineup"], correctIndex: 0 },
-  { question: "What's a \"formation\" like 4-4-2?", choices: ["The referee's positioning", "How a team arranges its players on the field", "The scoring system"], correctIndex: 1 },
-  { question: "What's a \"penalty shootout\"?", choices: ["A tiebreaker of alternating penalty kicks", "A type of warm-up drill", "A foul inside the box"], correctIndex: 0 },
-  { question: "What's the \"wall\" at a free kick?", choices: ["A row of defenders blocking the shot", "The stadium boundary", "The goal frame"], correctIndex: 0 },
-  { question: "What's a \"tackle\"?", choices: ["A challenge to win the ball from an opponent", "A type of pass", "A goalkeeper technique"], correctIndex: 0 },
-  { question: "What's a \"cross\"?", choices: ["A pass from a wide area into the box", "A backward pass to the keeper", "A shot from outside the box"], correctIndex: 0 },
-  { question: "What's a \"volley\"?", choices: ["Striking the ball while it's still in the air", "A header on goal", "A pass along the ground"], correctIndex: 0 },
-  { question: "What's \"stoppage time\"?", choices: ["Extra minutes added at the end of a half for delays", "The halftime break", "Time added before kickoff"], correctIndex: 0 },
-  { question: "What's a \"false nine\"?", choices: ["A forward who drops deep instead of staying central", "A defender who never crosses midfield", "A backup jersey number"], correctIndex: 0 },
+  { q: "Does talking to teammates actually help nerves?", a: "Yes — voicing what you're feeling to a teammate or coach (or anonymously through the coach inbox) tends to lower anxiety more than holding it in." },
 ];
 
 // The team's day runs on Thompson, CT time rather than whatever timezone the
@@ -409,7 +378,6 @@ export default function TeamLineupApp() {
   const [myStretchLog, setMyStretchLog] = useState({});
   const [tab, setTab] = useState("checkin");
   const [mood, setMood] = useState(null);
-  const [cheerTarget, setCheerTarget] = useState(null);
   const [cheerMsg, setCheerMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
@@ -433,7 +401,7 @@ export default function TeamLineupApp() {
         const merged = { ...loadDefaultTeamState(), ...teamState };
         const isNumeric = (p) => /^[0-9]+$/.test(p);
         merged.players = merged.players.filter(isNumeric);
-        merged.cheers = merged.cheers.filter((c) => isNumeric(c.from) && isNumeric(c.to));
+        merged.cheers = merged.cheers.filter((c) => isNumeric(c.from) && (c.to === "team" || isNumeric(c.to)));
         merged.socialPoints = Object.fromEntries(Object.entries(merged.socialPoints).filter(([k]) => isNumeric(k)));
         merged.avatarStyles = Object.fromEntries(Object.entries(merged.avatarStyles).filter(([k]) => isNumeric(k)));
         if (merged.seasonSeed !== SEASON_ID) {
@@ -496,7 +464,7 @@ export default function TeamLineupApp() {
 
   // Called once, at the end of onboarding: registers the player, saves their
   // avatar style, logs today's stretch, and optionally sends a first cheer.
-  const finishOnboarding = async ({ number, avatarStyle, cheerTarget: firstCheerTarget, cheerMsg: firstCheerMsg }) => {
+  const finishOnboarding = async ({ number, avatarStyle }) => {
     if (!number) return "Pick a number first.";
     if (team.players.includes(number)) return `#${number} was just taken — pick another one.`;
     await safeSet("my-nickname", number, false);
@@ -505,20 +473,13 @@ export default function TeamLineupApp() {
     const todayStretchLog = { ...myStretchLog, [todayKey()]: true };
     await persistMyStretchLog(todayStretchLog);
 
-    let next = {
+    const next = {
       ...team,
       players: [...team.players, number],
       avatarStyles: { ...team.avatarStyles, [number]: avatarStyle },
       socialPoints: { ...team.socialPoints, [number]: team.socialPoints[number] || 0 },
       dailyStretches: { ...team.dailyStretches, [todayKey()]: (team.dailyStretches[todayKey()] || 0) + 1 },
     };
-    if (firstCheerTarget && firstCheerMsg && firstCheerMsg.trim()) {
-      next = {
-        ...next,
-        cheers: [{ from: number, to: firstCheerTarget, message: firstCheerMsg.trim(), ts: Date.now() }, ...next.cheers].slice(0, 500),
-        socialPoints: { ...next.socialPoints, [number]: (next.socialPoints[number] || 0) + 3 },
-      };
-    }
     await persistTeam(next);
     return null;
   };
@@ -647,32 +608,30 @@ export default function TeamLineupApp() {
     setTimeout(() => setShowBurst(false), 1100);
   };
 
-  const sendCheer = async (target) => {
-    if (!cheerMsg.trim() || !me || !target) return;
+  // Cheers go to the whole team rather than one number: the numbers are
+  // made up, so nobody knows who #7 is, and cheering a stranger is awkward.
+  const sendCheer = async () => {
+    if (!cheerMsg.trim() || !me) return;
     const today = todayKey();
     const myToday = team.cheers.filter((c) => c.from === me && dateKey(new Date(c.ts)) === today);
-    if (myToday.some((c) => c.to === target)) {
-      showToast(`You already cheered #${target} today.`);
+    if (myToday.length >= CHEER_DAILY_LIMIT) {
+      showToast(`That's ${CHEER_DAILY_LIMIT} cheers today — send more tomorrow!`);
       return;
     }
-    const earnsPoints = myToday.length < CHEER_DAILY_LIMIT;
     const prevCount = team.cheers.filter((c) => c.from === me).length;
     const nextCount = prevCount + 1;
     const next = {
       ...team,
-      cheers: [{ from: me, to: target, message: cheerMsg.trim(), ts: Date.now() }, ...team.cheers].slice(0, 500),
-      socialPoints: earnsPoints
-        ? { ...team.socialPoints, [me]: (team.socialPoints[me] || 0) + 3 }
-        : team.socialPoints,
+      cheers: [{ from: me, to: "team", message: cheerMsg.trim(), ts: Date.now() }, ...team.cheers].slice(0, 500),
+      socialPoints: { ...team.socialPoints, [me]: (team.socialPoints[me] || 0) + 3 },
     };
     await persistTeam(next);
     setCheerMsg("");
-    setCheerTarget(null);
     setShowBurst(true);
     setTimeout(() => setShowBurst(false), 1100);
     const leveledUp = CROWN_TIERS.find((t) => t.min === nextCount);
     if (leveledUp) playCrownSound();
-    showToast(leveledUp ? `👑 ${leveledUp.label} unlocked!` : `Sent a cheer to #${target}`);
+    showToast(leveledUp ? `👑 ${leveledUp.label} unlocked!` : "Cheer sent to the team!");
   };
 
   if (!ready) return <ShellFonts><LoadingScreen /></ShellFonts>;
@@ -680,7 +639,7 @@ export default function TeamLineupApp() {
   if (!me) {
     return (
       <ShellFonts>
-        <Onboarding takenNumbers={team.players} teammates={team.players} onComplete={finishOnboarding} />
+        <Onboarding takenNumbers={team.players} onComplete={finishOnboarding} />
       </ShellFonts>
     );
   }
@@ -719,12 +678,8 @@ export default function TeamLineupApp() {
           )}
           {tab === "cheer" && (
             <CheerTab
-              players={team.players}
               me={me}
               cheers={team.cheers}
-              avatarStyles={team.avatarStyles}
-              cheerTarget={cheerTarget}
-              setCheerTarget={setCheerTarget}
               cheerMsg={cheerMsg}
               setCheerMsg={setCheerMsg}
               onSend={sendCheer}
@@ -974,7 +929,9 @@ function NumberGrid({ takenNumbers, selected, onSelect }) {
         return (
           <button
             key={n}
+            type="button"
             disabled={taken}
+            aria-pressed={isSelected}
             onClick={() => onSelect(n)}
             style={{
               ...styles.numberCell,
@@ -993,10 +950,15 @@ function NumberGrid({ takenNumbers, selected, onSelect }) {
   );
 }
 
-function StepShell({ title, subtitle, children, footer }) {
+function StepShell({ title, subtitle, children, footer, onBack }) {
   return (
     <div style={{ ...styles.center, minHeight: "100vh", padding: 24 }}>
       <div style={{ width: "100%", maxWidth: 380 }}>
+        {onBack && (
+          <button type="button" onClick={onBack} style={styles.backBtn}>
+            ← Back
+          </button>
+        )}
         <div style={{ color: "var(--amber)", fontSize: 14, fontWeight: 700, letterSpacing: 0.5, marginBottom: 4, textAlign: "center" }}>
           {TEAM_NAME}
         </div>
@@ -1130,7 +1092,7 @@ function AvatarCustomizer({
   );
 }
 
-function Onboarding({ takenNumbers, teammates, onComplete }) {
+function Onboarding({ takenNumbers, onComplete }) {
   const [step, setStep] = useState(0);
   const [number, setNumber] = useState(null);
   const [glasses, setGlasses] = useState(false);
@@ -1147,8 +1109,6 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
   const [playingIndex, setPlayingIndex] = useState(-1);
   const [countdown, setCountdown] = useState(3);
   const [stretchDone, setStretchDone] = useState(false);
-  const [cheerTarget, setCheerTarget] = useState(teammates[0] || null);
-  const [cheerMsg, setCheerMsg] = useState("");
   const [joinError, setJoinError] = useState(null);
 
   const avatarPreview = <PlayerAvatar number={number || "?"} size={100} glasses={glasses} furStyle={furStyle} bow={bow} bowColor={bowColor} skinTone={skinTone} hairColor={hairColor} sockColor={sockColor} color={jerseyColor} />;
@@ -1188,18 +1148,24 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
     setTimeout(() => setJustDrawn([]), 1400);
   };
 
-  const finish = async (skipCheer) => {
+  const finish = async () => {
     const err = await onComplete({
       number,
       avatarStyle: { glasses, furStyle, bow, bowColor, skinTone, hairColor, sockColor, jerseyColor },
-      cheerTarget: skipCheer ? null : cheerTarget,
-      cheerMsg: skipCheer ? null : cheerMsg,
     });
     if (err) {
       setJoinError(err);
       setNumber(null);
       setStep(1);
     }
+  };
+
+  // Back from anywhere in the stretch step lands on its menu; back from the
+  // menu (or from the last screen) goes to the step before it.
+  const backToStretchMenu = () => {
+    setStretchMode(null);
+    setPlayingIndex(-1);
+    setStretchDone(false);
   };
 
   if (step === 0) {
@@ -1226,10 +1192,15 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
   }
 
   if (step === 1) {
+    const rollNumber = () => {
+      const free = Array.from({ length: 99 }, (_, i) => String(i + 1)).filter((n) => !takenNumbers.includes(n) && n !== number);
+      if (free.length) setNumber(free[Math.floor(Math.random() * free.length)]);
+    };
     return (
       <StepShell
-        title="Pick Your Number"
-        subtitle="This is how your teammates will know you — grayed-out numbers are already taken."
+        onBack={() => setStep(0)}
+        title="Pick a Player Number"
+        subtitle="Any number you like — not your real jersey number. That way nobody can tell who's who."
         footer={
           <button
             style={{ ...styles.primaryBtn, width: "100%", opacity: number ? 1 : 0.4, cursor: number ? "pointer" : "not-allowed" }}
@@ -1246,7 +1217,11 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
         {joinError && (
           <div style={{ color: "var(--danger)", fontSize: 15, textAlign: "center", marginBottom: 10 }}>{joinError}</div>
         )}
+        <button type="button" onClick={rollNumber} style={{ ...styles.chip, width: "100%", marginBottom: 12, textAlign: "center", color: "var(--amber)", borderColor: "rgba(242,169,59,0.4)", touchAction: "manipulation" }}>
+          🎲 Pick one for me
+        </button>
         <NumberGrid takenNumbers={takenNumbers} selected={number} onSelect={setNumber} />
+        <div style={{ color: "var(--chalk-dim)", fontSize: 13, textAlign: "center", marginTop: 8 }}>Grayed-out numbers are already taken.</div>
       </StepShell>
     );
   }
@@ -1254,6 +1229,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
   if (step === 2) {
     return (
       <StepShell
+        onBack={() => setStep(1)}
         title="Customize Your Character"
         subtitle="Face, hair, outfit — make it yours."
         footer={
@@ -1281,8 +1257,9 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
   if (step === 4) {
     return (
       <StepShell
+        onBack={() => setStep(2)}
         title={`Remember: #${number}`}
-        subtitle="That's your number for the whole season — no need to write it down, just don't forget it!"
+        subtitle="That's your number for the whole season. Keep it to yourself — that's what keeps check-ins and cheers anonymous."
         footer={
           <button style={{ ...styles.primaryBtn, width: "100%" }} onClick={() => setStep(5)}>
             Got it!
@@ -1297,7 +1274,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
   if (step === 5) {
     if (!stretchMode) {
       return (
-        <StepShell title="Team Stretch" subtitle="Loosen up before we get going.">
+        <StepShell onBack={() => setStep(4)} title="Team Stretch" subtitle="Loosen up before we get going.">
           <div style={{ textAlign: "center", marginBottom: 20 }}>{avatarPreview}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <button style={{ ...styles.primaryBtn }} onClick={() => setStretchMode("follow")}>
@@ -1316,7 +1293,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
 
     if (stretchMode === "follow") {
       return (
-        <StepShell title={stretchDone ? "Nice work!" : "Follow Along"} subtitle={stretchDone ? "That's a stretch — you're all set." : "Just copy the bear."}>
+        <StepShell onBack={backToStretchMenu} title={stretchDone ? "Nice work!" : "Follow Along"} subtitle={stretchDone ? "That's a stretch — you're all set." : "Just copy the bear."}>
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <PlayerAvatar number={number} size={120} stretching={!stretchDone} glasses={glasses} furStyle={furStyle} sockColor={sockColor} />
           </div>
@@ -1330,7 +1307,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
     // "pick" mode
     if (playingIndex < 0) {
       return (
-        <StepShell title="Pick a Few Moves" subtitle="Choose the stretches you want to try — pick just one, or a few for variety.">
+        <StepShell onBack={backToStretchMenu} title="Pick a Few Moves" subtitle="Choose the stretches you want to try — pick just one, or a few for variety.">
           <div style={{ textAlign: "center", marginBottom: 16 }}>{avatarPreview}</div>
           <button onClick={pickGoodMix} disabled={selectedMoves.length >= STRETCH_MOVES.length} style={{ ...styles.chip, width: "100%", marginBottom: 12, textAlign: "center", color: "var(--amber)", borderColor: "rgba(242,169,59,0.4)", opacity: selectedMoves.length >= STRETCH_MOVES.length ? 0.4 : 1 }}>
             🎴 Draw 3 Moves
@@ -1375,7 +1352,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
     }
     if (stretchDone) {
       return (
-        <StepShell title="Nice work!" subtitle="That's a stretch — you're all set.">
+        <StepShell onBack={backToStretchMenu} title="Nice work!" subtitle="That's a stretch — you're all set.">
           <div style={{ textAlign: "center", marginBottom: 20 }}>{avatarPreview}</div>
           <button style={{ ...styles.primaryBtn, width: "100%" }} onClick={() => setStep(6)}>
             Next
@@ -1385,7 +1362,7 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
     }
     const current = STRETCH_MOVES.find((m) => m.key === selectedMoves[playingIndex]);
     return (
-      <StepShell title={current?.label || "Stretching…"}>
+      <StepShell onBack={() => setPlayingIndex(-1)} title={current?.label || "Stretching…"}>
         <div style={{ color: "var(--chalk-dim)", fontSize: 14, textAlign: "center", marginBottom: 8 }}>
           Move {playingIndex + 1} of {selectedMoves.length}
         </div>
@@ -1400,54 +1377,14 @@ function Onboarding({ takenNumbers, teammates, onComplete }) {
     );
   }
 
-  // step 6 — first cheer
+  // step 6 — done. There used to be a "send your first cheer" step here, but
+  // a new player can't know who any number belongs to, so it's gone.
   return (
-    <StepShell
-      title="Send a Cheer"
-      subtitle={teammates.length ? "Leave your first teammate a message." : "No teammates have joined yet — you'll be the first!"}
-    >
-      {teammates.length > 0 ? (
-        <>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, justifyContent: "center" }}>
-            {teammates.map((p) => (
-              <button
-                key={p}
-                onClick={() => setCheerTarget(p)}
-                style={{ ...styles.chip, display: "flex", alignItems: "center", gap: 6, borderColor: cheerTarget === p ? "var(--sky)" : "var(--line)", color: cheerTarget === p ? "var(--sky)" : "var(--chalk-dim)" }}
-              >
-                <PlayerAvatar number={p} size={30} />#{p}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, justifyContent: "center" }}>
-            {QUICK_CHEERS.map((q) => (
-              <button key={q} onClick={() => setCheerMsg(q)} style={styles.quickChip}>
-                {q}
-              </button>
-            ))}
-          </div>
-          <input
-            value={cheerMsg}
-            onChange={(e) => setCheerMsg(e.target.value)}
-            placeholder={cheerTarget ? `Say something to #${cheerTarget}` : "Pick a teammate first"}
-            style={{ ...styles.input, marginBottom: 12 }}
-          />
-          <button
-            style={{ ...styles.primaryBtn, width: "100%", marginBottom: 10, opacity: cheerTarget && cheerMsg.trim() ? 1 : 0.4 }}
-            disabled={!cheerTarget || !cheerMsg.trim()}
-            onClick={() => finish(false)}
-          >
-            Send & Enter the Lineup
-          </button>
-          <button style={styles.skipBtn} onClick={() => finish(true)}>
-            Skip for now
-          </button>
-        </>
-      ) : (
-        <button style={{ ...styles.primaryBtn, width: "100%" }} onClick={() => finish(true)}>
-          Enter the Lineup
-        </button>
-      )}
+    <StepShell onBack={() => { backToStretchMenu(); setStep(5); }} title="You're in the Lineup!" subtitle="Check in, warm up, cheer the team on — see you on the field.">
+      <div style={{ textAlign: "center", marginBottom: 20 }}>{avatarPreview}</div>
+      <button style={{ ...styles.primaryBtn, width: "100%" }} onClick={finish}>
+        Enter the Lineup
+      </button>
     </StepShell>
   );
 }
@@ -2034,51 +1971,36 @@ function KudosBar({ kudos, onSend }) {
   );
 }
 
-function CheerTab({ players, me, cheers, avatarStyles, cheerTarget, setCheerTarget, cheerMsg, setCheerMsg, onSend, kudos, onSendKudos }) {
-  const teammates = players.filter((p) => p !== me);
+function CheerTab({ me, cheers, cheerMsg, setCheerMsg, onSend, kudos, onSendKudos }) {
+  const today = todayKey();
+  const sentToday = cheers.filter((c) => c.from === me && dateKey(new Date(c.ts)) === today).length;
+  const left = Math.max(CHEER_DAILY_LIMIT - sentToday, 0);
   return (
     <div>
       <KudosBar kudos={kudos} onSend={onSendKudos} />
       <div style={{ ...styles.card, marginBottom: 14 }}>
         <div style={{ fontSize: 20, marginBottom: 4 }}>👑 How Crowns Work</div>
         <div style={{ color: "var(--chalk-dim)", fontSize: 14, lineHeight: 1.6 }}>
-          Every cheer message you send counts. Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> earns you a bigger crown —
+          Every cheer you send to the team counts. Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> earns you a bigger crown —
           check the Ranking tab to see your current tier and how close you are to the next one.
         </div>
       </div>
       <div style={styles.card}>
-        <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 10 }}>Who do you want to cheer for?</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          {teammates.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No other teammates yet.</div>}
-          {teammates.map((p) => {
-            const s = avatarStyles[p] || {};
-            return (
-              <button
-                key={p}
-                onClick={() => setCheerTarget(p)}
-                style={{ ...styles.chip, display: "flex", alignItems: "center", gap: 6, borderColor: cheerTarget === p ? "var(--sky)" : "var(--line)", color: cheerTarget === p ? "var(--sky)" : "var(--chalk-dim)" }}
-              >
-                <PlayerAvatar number={p} size={30} glasses={s.glasses} furStyle={s.furStyle} bow={s.bow} bowColor={s.bowColor} skinTone={s.skinTone} hairColor={s.hairColor} sockColor={s.sockColor} color={cheerTarget === p ? "var(--sky)" : s.jerseyColor || "var(--turf-bright)"} />
-                #{p}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+          <div style={{ color: "var(--chalk)", fontSize: 16, fontWeight: 600 }}>📣 Cheer on the team</div>
+          <div className="lineup-mono" style={{ color: "var(--chalk-dim)", fontSize: 13 }}>{left} left today</div>
         </div>
-        {cheerTarget && (
-          <>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-              {QUICK_CHEERS.map((q) => (
-                <button key={q} onClick={() => setCheerMsg(q)} style={styles.quickChip}>
-                  {q}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={cheerMsg} onChange={(e) => setCheerMsg(e.target.value)} placeholder={`Say something to #${cheerTarget}`} style={{ ...styles.input, flex: 1 }} />
-              <button onClick={() => onSend(cheerTarget)} style={styles.primaryBtn}>Send</button>
-            </div>
-          </>
-        )}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+          {QUICK_CHEERS.map((q) => (
+            <button key={q} onClick={() => setCheerMsg(q)} style={styles.quickChip}>
+              {q}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={cheerMsg} onChange={(e) => setCheerMsg(e.target.value)} placeholder="Say something to the team" style={{ ...styles.input, flex: 1 }} />
+          <button onClick={onSend} disabled={!cheerMsg.trim() || left === 0} style={{ ...styles.primaryBtn, opacity: cheerMsg.trim() && left > 0 ? 1 : 0.4 }}>Send</button>
+        </div>
       </div>
 
       <div style={{ color: "var(--chalk-dim)", fontSize: 13, margin: "20px 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>Recent Cheers</div>
@@ -2088,7 +2010,7 @@ function CheerTab({ players, me, cheers, avatarStyles, cheerTarget, setCheerTarg
           <div key={i} style={styles.cheerRow}>
             <span style={{ color: "var(--sky)", fontWeight: 600 }}>#{c.from}</span>
             <span style={{ color: "var(--chalk-dim)" }}> → </span>
-            <span style={{ color: "var(--chalk)", fontWeight: 600 }}>#{c.to}</span>
+            <span style={{ color: "var(--chalk)", fontWeight: 600 }}>{c.to === "team" ? "Team" : `#${c.to}`}</span>
             <div style={{ color: "var(--chalk-dim)", fontSize: 15, marginTop: 2 }}>{c.message}</div>
           </div>
         ))}
@@ -2148,20 +2070,22 @@ function ChallengeTab({ players, cheers, aggregateCheckins, unlocked, teamPct, m
           )}
         </div>
       )}
+      <CalmCorner />
       <SoccerSeries me={me} soccerProgress={soccerProgress} onPassLevel={onPassLevel} />
     </div>
   );
 }
 
-/* ── Bonus mini-game: Penalty Shootout ─────── */
+/* ── Knight's Quest: four skill games ───────── */
 
-// Same four levels as before — only the framing changed, so the round
-// engine below is untouched.
+// Real games now — touch, timing, focus, reaction — instead of a quiz and
+// two coin-flip shootouts. Ids and rewards are unchanged, so progress
+// already saved in soccerProgress still lines up.
 const SOCCER_LEVELS = [
-  { id: 1, title: "Squire's Test", icon: "📜", type: "trivia", rounds: 3, passCount: 2, reward: 5, desc: "Prove you know the game before you ride." },
-  { id: 2, title: "Storm the Goal", icon: "⚽", type: "shootout", rounds: 3, passCount: 2, reward: 5, desc: "Beat the knight guarding the goal." },
-  { id: 3, title: "Shield Wall", icon: "🛡️", type: "reaction", rounds: 3, passCount: 2, reward: 8, desc: "React fast — block the side that lights up." },
-  { id: 4, title: "The Golden Knight", icon: "🏆", type: "shootout", rounds: 5, passCount: 4, reward: 15, desc: "Best of 5 — the final ride." },
+  { id: 1, title: "Squire's Touch", icon: "⚽", type: "juggle", rounds: 3, passCount: 1, reward: 5, roundLabel: "Try", desc: "Keep the ball up for 8 touches. Three tries." },
+  { id: 2, title: "Storm the Goal", icon: "🎯", type: "penalty", rounds: 5, passCount: 3, reward: 5, roundLabel: "Kick", desc: "Lock your aim, time your power — score 3 of 5." },
+  { id: 3, title: "Knight's Eye", icon: "👁️", type: "track", rounds: 3, passCount: 2, reward: 8, roundLabel: "Round", desc: "Focus: follow the gold balls through the shuffle." },
+  { id: 4, title: "The Golden Knight", icon: "🏆", type: "keeper", rounds: 6, passCount: 4, reward: 15, roundLabel: "Shot", desc: "You're in goal — save 4 of 6 to guard the castle." },
 ];
 
 // The school crest: a knight on a rearing horse, in Marianapolis maroon and gold.
@@ -2201,153 +2125,448 @@ function QuestTrail({ level, total }) {
   );
 }
 
-function TriviaRound({ onResult }) {
-  const [q] = useState(() => TRIVIA_QUESTIONS[Math.floor(Math.random() * TRIVIA_QUESTIONS.length)]);
-  const [picked, setPicked] = useState(null);
-
-  const pick = (i) => {
-    if (picked !== null) return;
-    setPicked(i);
-    if (i === q.correctIndex) playCorrectSound();
-    else playWrongSound();
-    onResult(i === q.correctIndex);
-  };
-
-  return (
-    <div>
-      <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 600, marginBottom: 12 }}>{q.question}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {q.choices.map((choice, i) => {
-          const show = picked !== null;
-          const isCorrect = i === q.correctIndex;
-          let borderColor = "var(--line)";
-          let bg = "var(--bg-elev2)";
-          if (show && isCorrect) {
-            borderColor = "var(--turf-bright)";
-            bg = "rgba(95,168,90,0.15)";
-          } else if (show && i === picked && !isCorrect) {
-            borderColor = "var(--danger)";
-            bg = "rgba(217,112,92,0.15)";
-          }
-          return (
-            <button key={i} onClick={() => pick(i)} disabled={picked !== null} style={{ ...styles.taskRow, borderColor, background: bg, cursor: picked !== null ? "default" : "pointer" }}>
-              <span style={{ color: "var(--chalk)", fontSize: 16 }}>{choice}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+// Runs cb(dt, now) every animation frame while `active`; dt in seconds, capped
+// so a backgrounded tab doesn't come back and teleport everything.
+function useFrame(cb, active) {
+  const cbRef = useRef(cb);
+  cbRef.current = cb;
+  useEffect(() => {
+    if (!active) return;
+    let id;
+    let last = performance.now();
+    const tick = (now) => {
+      const dt = Math.min((now - last) / 1000, 0.05);
+      last = now;
+      cbRef.current(dt, now);
+      id = requestAnimationFrame(tick);
+    };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [active]);
 }
 
-function ShootoutRound({ onResult }) {
-  const [picked, setPicked] = useState(null);
-  const [keeperSide, setKeeperSide] = useState(null);
-  const [result, setResult] = useState(null);
+const playTouchSound = () => playTone(660, 0, 0.08, "triangle", 0.1);
 
-  const shoot = (side) => {
-    if (picked) return;
-    const keeper = ["left", "center", "right"][Math.floor(Math.random() * 3)];
-    setPicked(side);
-    setKeeperSide(keeper);
-    const isGoal = side !== keeper;
-    setTimeout(() => {
-      setResult(isGoal ? "goal" : "saved");
-      if (isGoal) playGoalSound();
-      else playSavedSound();
-      onResult(isGoal);
-    }, 500);
-  };
-
-  const sideX = { left: 22, center: 50, right: 78 };
-
-  return (
-    <div>
-      <div style={styles.goalBox}>
-        <div style={styles.goalNet} />
-        {keeperSide && (
-          <div style={{ ...styles.keeper, left: `${sideX[keeperSide]}%` }}>
-            <KnightRider size={58} />
-          </div>
-        )}
-        {picked && (
-          <div style={{ ...styles.ball, left: `${sideX[picked]}%`, bottom: result ? "42%" : "6%", transition: "left 0.5s ease-out, bottom 0.5s ease-out" }}>
-            ⚽
-          </div>
-        )}
-        {result && (
-          <div style={{ ...styles.shotResult, color: result === "goal" ? "var(--turf-bright)" : "var(--danger)" }}>
-            {result === "goal" ? "GOAL!" : "SAVED!"}
-          </div>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-        {["left", "center", "right"].map((side) => (
-          <button key={side} onClick={() => shoot(side)} disabled={!!picked} style={{ ...styles.primaryBtn, flex: 1, background: "var(--sky)", opacity: picked ? 0.4 : 1, cursor: picked ? "default" : "pointer", textTransform: "capitalize" }}>
-            {side}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ReactionRound({ onResult }) {
-  const [phase, setPhase] = useState("ready"); // ready -> flash -> done
-  const [direction, setDirection] = useState(null);
-  const answeredRef = useRef(false);
+// Level 1 — keep the ball in the air. Tap the ball itself; hitting it
+// off-center sends it sideways, so it takes real control, not just speed.
+function JuggleRound({ onResult, target = 8 }) {
+  const H = 300;
+  const R = 26;
+  const areaRef = useRef(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
+  const ball = useRef({ x: 160, y: 150, vx: 0, vy: 0 });
+  const [, setFrame] = useState(0);
+  const [phase, setPhase] = useState("ready"); // ready -> play -> done
+  const [touches, setTouches] = useState(0);
+  const [won, setWon] = useState(false);
 
   useEffect(() => {
-    answeredRef.current = false;
-    setPhase("ready");
-    setDirection(null);
-    let flashTimer;
-    const startDelay = 700 + Math.random() * 700;
-    const readyTimer = setTimeout(() => {
-      const dir = ["left", "center", "right"][Math.floor(Math.random() * 3)];
-      setDirection(dir);
-      setPhase("flash");
-      flashTimer = setTimeout(() => {
-        if (!answeredRef.current) {
-          answeredRef.current = true;
-          setPhase("done");
-          playWrongSound();
-          onResult(false);
-        }
-      }, 650);
-    }, startDelay);
+    const w = areaRef.current?.clientWidth || 320;
+    ball.current = { x: w / 2, y: 150, vx: 0, vy: 0 };
+    setFrame((f) => f + 1);
+  }, []);
+
+  const end = (success) => {
+    setPhase("done");
+    setWon(success);
+    if (success) playGoalSound();
+    else playSavedSound();
+    onResultRef.current(success);
+  };
+
+  useFrame((dt) => {
+    const b = ball.current;
+    const w = areaRef.current?.clientWidth || 320;
+    b.vy += (1500 + touches * 30) * dt;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx) * 0.8; }
+    if (b.x > w - R) { b.x = w - R; b.vx = -Math.abs(b.vx) * 0.8; }
+    if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy) * 0.3; }
+    setFrame((f) => f + 1);
+    if (b.y > H - R - 6) {
+      b.y = H - R - 6;
+      end(false);
+    }
+  }, phase === "play");
+
+  const tap = (e) => {
+    if (phase === "done") return;
+    const rect = areaRef.current.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const b = ball.current;
+    if (Math.hypot(px - b.x, py - b.y) > R * 2.1) return;
+    if (phase === "play" && b.vy < -250) return; // already on its way up
+    b.vy = -680;
+    b.vx = Math.max(-260, Math.min(260, b.vx * 0.4 + (b.x - px) * 7));
+    playTouchSound();
+    const n = touches + 1;
+    setTouches(n);
+    if (phase === "ready") setPhase("play");
+    if (n >= target) end(true);
+  };
+
+  const b = ball.current;
+  return (
+    <div ref={areaRef} onPointerDown={tap} style={{ ...styles.arena, height: H }}>
+      <div className="lineup-display" style={styles.arenaBigCount}>
+        {touches}/{target}
+      </div>
+      <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 6, background: "rgba(95,168,90,0.5)" }} />
+      <div style={{ position: "absolute", left: b.x - R, top: b.y - R, width: R * 2, height: R * 2, fontSize: R * 1.8, lineHeight: `${R * 2}px`, textAlign: "center", transform: `rotate(${b.x * 3}deg)`, pointerEvents: "none" }}>
+        ⚽
+      </div>
+      <div style={styles.arenaHint}>
+        {phase === "ready" && "Tap the ball to start — keep it off the ground!"}
+        {phase === "done" && (won ? `${target} touches — nice control!` : `Dropped after ${touches}. Next try!`)}
+      </div>
+    </div>
+  );
+}
+
+// Level 2 — two taps: lock the aim while the marker sweeps, then lock the
+// power. Too close to the post goes wide, too hard goes over, too soft or too
+// close to the keeper gets saved.
+function PenaltyRound({ onResult, hard = false }) {
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
+  const [phase, setPhase] = useState("aim"); // aim -> power -> shot -> done
+  const [clock, setClock] = useState(0);
+  const offset = useRef(Math.random() * Math.PI * 2);
+  const [aimU, setAimU] = useState(null);
+  const [power, setPower] = useState(null);
+  const [keeperAt, setKeeperAt] = useState(null);
+  const [result, setResult] = useState(null);
+
+  const aimSpeed = hard ? 3.0 : 2.2;
+  const powerSpeed = hard ? 4.4 : 3.3;
+  const keeperSpeed = hard ? 1.8 : 1.3;
+  const reach = hard ? 0.2 : 0.16;
+
+  useFrame((dt) => setClock((c) => c + dt), phase === "aim" || phase === "power");
+
+  const liveAim = 0.5 + 0.52 * Math.sin(clock * aimSpeed + offset.current);
+  const livePower = (1 - Math.cos(clock * powerSpeed)) / 2;
+  const liveKeeper = 0.5 + 0.3 * Math.sin(clock * keeperSpeed + offset.current * 1.7);
+
+  const tap = () => {
+    if (phase === "aim") {
+      setAimU(liveAim);
+      setClock(0);
+      setPhase("power");
+    } else if (phase === "power") {
+      const p = livePower;
+      const k = liveKeeper;
+      let outcome;
+      if (aimU < 0.03 || aimU > 0.97) outcome = "wide";
+      else if (p > 0.85) outcome = "over";
+      else if (Math.abs(aimU - k) < (p < 0.35 ? 0.45 : reach)) outcome = "saved";
+      else outcome = "goal";
+      const dive = Math.max(-reach - 0.05, Math.min(reach + 0.05, aimU - k));
+      setPower(p);
+      setKeeperAt(k + dive);
+      setPhase("shot");
+      setTimeout(() => {
+        setResult(outcome);
+        setPhase("done");
+        if (outcome === "goal") playGoalSound();
+        else playSavedSound();
+        onResultRef.current(outcome === "goal");
+      }, 550);
+    }
+  };
+
+  const toLeft = (u) => `${8 + u * 84}%`;
+  const keeperU = keeperAt ?? liveKeeper;
+  const shown = aimU ?? liveAim;
+  const flying = phase === "shot" || phase === "done";
+  const shotTop = power == null ? "78%" : power > 0.85 ? "-8%" : "22%";
+  const label = { goal: "GOAL!", saved: "SAVED!", wide: "WIDE!", over: "OVER THE BAR!" }[result];
+
+  return (
+    <div onPointerDown={tap} style={{ touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none" }}>
+      <div style={{ ...styles.goalBox, cursor: "pointer" }}>
+        <div style={styles.goalNet} />
+        <div style={{ position: "absolute", top: 40, left: toLeft(keeperU), transform: "translateX(-50%)", transition: flying ? "left 0.45s ease-out" : "none" }}>
+          <KnightRider size={56} />
+        </div>
+        {!flying && (
+          <div style={{ position: "absolute", top: 58, left: toLeft(shown), transform: "translate(-50%, -50%)", width: 26, height: 26, borderRadius: "50%", border: "3px solid var(--amber)", boxShadow: "0 0 0 3px rgba(242,169,59,0.25)" }} />
+        )}
+        <div style={{ ...styles.ball, left: flying ? toLeft(aimU) : "50%", top: flying ? shotTop : "78%", transition: "left 0.5s ease-out, top 0.5s ease-out" }}>⚽</div>
+        {label && <div style={{ ...styles.shotResult, color: result === "goal" ? "var(--turf-bright)" : "var(--danger)" }}>{label}</div>}
+      </div>
+      <div style={{ ...styles.powerTrack, visibility: phase === "aim" ? "hidden" : "visible" }}>
+        <div style={styles.powerZone} />
+        <div style={{ ...styles.powerMarker, left: `${(power ?? livePower) * 100}%` }} />
+      </div>
+      <button type="button" style={{ ...styles.primaryBtn, width: "100%", marginTop: 10, background: "var(--sky)", opacity: flying ? 0.4 : 1 }}>
+        {phase === "aim" ? "Tap to lock your aim" : phase === "power" ? "Tap to shoot — stop in the green" : "…"}
+      </button>
+    </div>
+  );
+}
+
+// Level 3 — "Knight's Eye", the focus game. The gold balls are shown, then
+// every ball looks the same and they shuffle around; find the gold ones again.
+// Same skill as keeping track of the ball and your teammates at once.
+function TrackRound({ onResult, count = 6, marked = 2, moveMs = 5000 }) {
+  const H = 300;
+  const R = 22;
+  const areaRef = useRef(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
+  const balls = useRef([]);
+  const [, setFrame] = useState(0);
+  const [phase, setPhase] = useState("show"); // show -> move -> pick -> done
+  const [picks, setPicks] = useState([]);
+
+  useEffect(() => {
+    const w = areaRef.current?.clientWidth || 320;
+    const cols = 3;
+    const cellW = w / cols;
+    const cellH = H / Math.ceil(count / cols);
+    const golds = Array.from({ length: count }, (_, i) => i < marked).sort(() => Math.random() - 0.5);
+    balls.current = golds.map((gold, i) => {
+      const angle = Math.random() * Math.PI * 2;
+      return {
+        x: cellW * (i % cols) + cellW / 2,
+        y: cellH * Math.floor(i / cols) + cellH / 2,
+        vx: Math.cos(angle),
+        vy: Math.sin(angle),
+        gold,
+      };
+    });
+    setFrame((f) => f + 1);
+    const t1 = setTimeout(() => setPhase("move"), 1800);
+    const t2 = setTimeout(() => setPhase("pick"), 1800 + moveMs);
     return () => {
-      clearTimeout(readyTimer);
-      clearTimeout(flashTimer);
+      clearTimeout(t1);
+      clearTimeout(t2);
     };
   }, []);
 
-  const tap = (side) => {
-    if (phase !== "flash" || answeredRef.current) return;
-    answeredRef.current = true;
-    setPhase("done");
-    const success = side === direction;
-    if (success) playCorrectSound();
-    else playWrongSound();
-    onResult(success);
+  useFrame((dt) => {
+    const w = areaRef.current?.clientWidth || 320;
+    const speed = 110;
+    for (const b of balls.current) {
+      // a little wander so the paths aren't straight lines
+      const turn = (Math.random() - 0.5) * 3 * dt;
+      const c = Math.cos(turn);
+      const s = Math.sin(turn);
+      [b.vx, b.vy] = [b.vx * c - b.vy * s, b.vx * s + b.vy * c];
+      b.x += b.vx * speed * dt;
+      b.y += b.vy * speed * dt;
+      if (b.x < R) { b.x = R; b.vx = Math.abs(b.vx); }
+      if (b.x > w - R) { b.x = w - R; b.vx = -Math.abs(b.vx); }
+      if (b.y < R) { b.y = R; b.vy = Math.abs(b.vy); }
+      if (b.y > H - R) { b.y = H - R; b.vy = -Math.abs(b.vy); }
+    }
+    setFrame((f) => f + 1);
+  }, phase === "move");
+
+  const pick = (i) => {
+    if (phase !== "pick" || picks.includes(i)) return;
+    const next = [...picks, i];
+    setPicks(next);
+    playTouchSound();
+    if (next.length === marked) {
+      const success = next.every((j) => balls.current[j].gold);
+      setPhase("done");
+      if (success) playCorrectSound();
+      else playWrongSound();
+      onResultRef.current(success);
+    }
   };
 
-  const arrow = direction === "left" ? "\u2b05\ufe0f" : direction === "right" ? "\u27a1\ufe0f" : "\u2b06\ufe0f";
+  const what = marked === 1 ? "gold ball" : `${marked} gold balls`;
+  return (
+    <div ref={areaRef} style={{ ...styles.arena, height: H }}>
+      {balls.current.map((b, i) => {
+        let ring = "transparent";
+        if (phase === "show" && b.gold) ring = "var(--amber)";
+        if (phase === "pick" && picks.includes(i)) ring = "var(--sky)";
+        if (phase === "done") ring = b.gold ? "var(--turf-bright)" : picks.includes(i) ? "var(--danger)" : "transparent";
+        return (
+          <button
+            key={i}
+            type="button"
+            onPointerDown={() => pick(i)}
+            style={{ position: "absolute", left: b.x - R, top: b.y - R, width: R * 2, height: R * 2, borderRadius: "50%", border: `3px solid ${ring}`, background: phase === "show" && b.gold ? "rgba(242,169,59,0.35)" : "transparent", fontSize: R * 1.4, lineHeight: 1, padding: 0, cursor: phase === "pick" ? "pointer" : "default", touchAction: "manipulation" }}
+          >
+            ⚽
+          </button>
+        );
+      })}
+      <div style={styles.arenaHint}>
+        {phase === "show" && `Watch the ${what}…`}
+        {phase === "move" && "Keep your eyes on them…"}
+        {phase === "pick" && `Tap the ${what} (${picks.length}/${marked})`}
+      </div>
+    </div>
+  );
+}
+
+// Level 4 — you're the keeper. Drag (or tap) to move; the glove glides toward
+// your finger at a fixed top speed, so you have to read the shot early.
+function KeeperRound({ onResult, travelMs = 850 }) {
+  const H = 300;
+  const GLOVE = 34; // half width
+  const LINE = H - 42;
+  const areaRef = useRef(null);
+  const onResultRef = useRef(onResult);
+  onResultRef.current = onResult;
+  const keeper = useRef({ x: 160, target: 160 });
+  const shot = useRef(null);
+  const [, setFrame] = useState(0);
+  const [phase, setPhase] = useState("windup"); // windup -> flight -> done
+  const [saved, setSaved] = useState(null);
+
+  useEffect(() => {
+    const w = areaRef.current?.clientWidth || 320;
+    keeper.current = { x: w / 2, target: w / 2 };
+    shot.current = {
+      fromX: w * (0.25 + Math.random() * 0.5),
+      toX: w * (0.12 + Math.random() * 0.76),
+      curve: (Math.random() - 0.5) * 120,
+      t: 0,
+    };
+    setFrame((f) => f + 1);
+    const t = setTimeout(() => setPhase("flight"), 700 + Math.random() * 600);
+    return () => clearTimeout(t);
+  }, []);
+
+  useFrame((dt) => {
+    const k = keeper.current;
+    const step = 720 * dt;
+    k.x += Math.max(-step, Math.min(step, k.target - k.x));
+    if (phase === "flight") {
+      const s = shot.current;
+      s.t += (dt * 1000) / travelMs;
+      if (s.t >= 1) {
+        s.t = 1;
+        const ok = Math.abs(s.toX - k.x) < GLOVE + 16;
+        setSaved(ok);
+        setPhase("done");
+        if (ok) playCorrectSound();
+        else playSavedSound();
+        onResultRef.current(ok);
+      }
+    }
+    setFrame((f) => f + 1);
+  }, phase !== "done");
+
+  const steer = (e) => {
+    if (phase === "done") return;
+    if (e.type === "pointermove" && e.pointerType === "mouse" && e.buttons === 0) return;
+    const rect = areaRef.current.getBoundingClientRect();
+    keeper.current.target = Math.max(GLOVE, Math.min(rect.width - GLOVE, e.clientX - rect.left));
+  };
+
+  const s = shot.current;
+  const p = s ? s.t : 0;
+  const bx = s ? s.fromX + (s.toX - s.fromX) * p + s.curve * Math.sin(Math.PI * p) : 0;
+  const by = 26 + (LINE - 26) * p;
+  const size = 20 + 22 * p;
 
   return (
-    <div>
-      <div style={{ textAlign: "center", color: "var(--chalk-dim)", fontSize: 15, marginBottom: 12, minHeight: 18 }}>
-        {phase === "ready" && "Get ready\u2026"}
-        {phase === "flash" && "GO! Tap the matching side!"}
+    <div ref={areaRef} onPointerDown={steer} onPointerMove={steer} style={{ ...styles.arena, height: H }}>
+      <div style={{ position: "absolute", left: "6%", right: "6%", bottom: 0, height: 34, border: "4px solid var(--chalk-dim)", borderBottom: "none", backgroundImage: "repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(241,239,231,0.15) 11px)" }} />
+      {s && phase === "windup" && <div style={{ position: "absolute", left: s.fromX, top: 8, transform: "translateX(-50%)", fontSize: 13, color: "var(--amber)" }}>▼</div>}
+      {s && <div style={{ position: "absolute", left: bx, top: by, transform: "translate(-50%, -50%)", fontSize: size, lineHeight: 1, pointerEvents: "none" }}>⚽</div>}
+      <div style={{ position: "absolute", left: keeper.current.x - GLOVE, top: LINE - 10, width: GLOVE * 2, height: 22, borderRadius: 11, background: SCHOOL_MAROON, border: `3px solid ${SCHOOL_GOLD}`, display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 16, pointerEvents: "none" }}>
+        <span>🧤</span>
+        <span>🧤</span>
       </div>
-      <div style={{ textAlign: "center", fontSize: 56, marginBottom: 16, minHeight: 64 }}>{phase === "flash" ? arrow : ""}</div>
-      <div style={{ display: "flex", gap: 8 }}>
-        {["left", "center", "right"].map((side) => (
-          <button key={side} onClick={() => tap(side)} disabled={phase !== "flash"} style={{ ...styles.primaryBtn, flex: 1, background: "var(--sky)", opacity: phase === "flash" ? 1 : 0.4, cursor: phase === "flash" ? "pointer" : "default", textTransform: "capitalize" }}>
-            {side}
-          </button>
-        ))}
+      <div style={{ ...styles.arenaHint, top: 40, bottom: "auto" }}>
+        {phase === "windup" && "Drag to move — here it comes…"}
+        {phase === "done" && (saved ? "SAVED! 🧤" : "Goal… reset and go again.")}
       </div>
+    </div>
+  );
+}
+
+// Calm Down — breathing, deliberately outside the quest: no score, no pass or
+// fail, nothing saved. Something graded is the opposite of what a nervous
+// player needs before kickoff.
+const BREATH_MODES = {
+  box: { icon: "⬜", title: "Box Breathing", desc: "In 4 · hold 4 · out 4 · hold 4", cycle: 16 },
+  balloon: { icon: "🎈", title: "Balloon Breath", desc: "In for 4, slowly out for 6", cycle: 10 },
+};
+
+function CalmCorner() {
+  const [mode, setMode] = useState(null);
+  const [t, setT] = useState(0);
+  useFrame((dt) => setT((x) => x + dt), mode !== null);
+
+  if (!mode) {
+    return (
+      <div style={{ ...styles.card, marginTop: 14 }}>
+        <div style={{ color: "var(--chalk)", fontSize: 19, fontWeight: 700, marginBottom: 2 }}>🌿 Calm Down</div>
+        <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 14 }}>
+          Nervous before a game? A minute of slow breathing settles your body. No score, nothing to win — just breathe.
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {Object.entries(BREATH_MODES).map(([key, m]) => (
+            <button key={key} onClick={() => { setT(0); setMode(key); }} style={styles.taskRow}>
+              <span style={{ fontSize: 22 }}>{m.icon}</span>
+              <span style={{ flex: 1 }}>
+                <div style={{ color: "var(--chalk)", fontSize: 16, fontWeight: 600 }}>{m.title}</div>
+                <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginTop: 1 }}>{m.desc}</div>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const m = BREATH_MODES[mode];
+  const c = t % m.cycle;
+  let cue;
+  let count;
+  let visual;
+  if (mode === "box") {
+    const side = Math.floor(c / 4);
+    const f = (c % 4) / 4;
+    const S = 180;
+    cue = ["Breathe in", "Hold", "Breathe out", "Hold"][side];
+    count = Math.floor(c % 4) + 1;
+    // up the left edge, across the top, down the right, back along the bottom
+    const [x, y] = [[0, S - f * S], [f * S, 0], [S, f * S], [S - f * S, S]][side];
+    visual = (
+      <div style={{ position: "relative", width: S, height: S, margin: "20px auto", border: "3px solid rgba(127,168,201,0.45)", borderRadius: 8 }}>
+        <div style={{ position: "absolute", left: x - 11, top: y - 11, width: 22, height: 22, borderRadius: "50%", background: "var(--sky)", boxShadow: "0 0 16px var(--sky)" }} />
+      </div>
+    );
+  } else {
+    const inhale = c < 4;
+    const f = inhale ? c / 4 : (c - 4) / 6;
+    const ease = (1 - Math.cos(Math.PI * f)) / 2;
+    const scale = inhale ? 0.5 + 0.5 * ease : 1 - 0.5 * ease;
+    cue = inhale ? "Breathe in" : "Breathe out… slowly";
+    count = inhale ? Math.floor(c) + 1 : Math.floor(c - 4) + 1;
+    visual = (
+      <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle, rgba(127,168,201,0.55), rgba(127,168,201,0.15))", transform: `scale(${scale})` }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...styles.card, marginTop: 14, textAlign: "center" }}>
+      <div style={{ color: "var(--chalk-dim)", fontSize: 14 }}>{m.title}</div>
+      {visual}
+      <div className="lineup-display" style={{ fontSize: 28, color: "var(--chalk)" }}>{cue}</div>
+      <div className="lineup-mono" style={{ fontSize: 22, color: "var(--sky)", marginTop: 4 }}>{count}</div>
+      <div style={{ color: "var(--chalk-dim)", fontSize: 14, minHeight: 20, marginTop: 10 }}>
+        {t >= 60 ? "That's a minute. Take this calm onto the field. 🌿" : ""}
+      </div>
+      <button style={{ ...styles.skipBtn, marginTop: 8 }} onClick={() => setMode(null)}>
+        Done
+      </button>
     </div>
   );
 }
@@ -2362,7 +2581,10 @@ function LevelPlayer({ level, onExit, onFinish }) {
     const newSuccess = successCount + (success ? 1 : 0);
     const newIndex = roundIndex + 1;
     setSuccessCount(newSuccess);
-    if (newIndex >= level.rounds) {
+    // End early once passing is certain or out of reach — no one wants to
+    // play out two more juggling tries after already hitting 8.
+    const decided = newSuccess >= level.passCount || newSuccess + (level.rounds - newIndex) < level.passCount;
+    if (newIndex >= level.rounds || decided) {
       const didPass = newSuccess >= level.passCount;
       setTimeout(() => {
         setPassed(didPass);
@@ -2371,9 +2593,9 @@ function LevelPlayer({ level, onExit, onFinish }) {
           playLevelClearSound();
           onFinish(true);
         }
-      }, 700);
+      }, 1300);
     } else {
-      setTimeout(() => setRoundIndex(newIndex), 900);
+      setTimeout(() => setRoundIndex(newIndex), 1300);
     }
   };
 
@@ -2390,7 +2612,7 @@ function LevelPlayer({ level, onExit, onFinish }) {
           {passed ? "Level Clear! \ud83c\udf89" : "Try Again"}
         </div>
         <div style={{ color: "var(--chalk-dim)", textAlign: "center", marginBottom: passed ? 6 : 16 }}>
-          {successCount}/{level.rounds} — needed {level.passCount}
+          {successCount} of {level.rounds} — needed {level.passCount}
         </div>
         {passed && <div style={{ color: "var(--amber)", textAlign: "center", marginBottom: 16, fontWeight: 700 }}>+{level.reward}pt earned</div>}
         <div style={{ display: "flex", gap: 8 }}>
@@ -2414,12 +2636,13 @@ function LevelPlayer({ level, onExit, onFinish }) {
           {level.icon} {level.title}
         </span>
         <span className="lineup-mono" style={{ color: "var(--chalk-dim)", fontSize: 14 }}>
-          Round {roundIndex + 1}/{level.rounds} · {successCount} ✓
+          {level.roundLabel || "Round"} {roundIndex + 1}/{level.rounds} · {successCount} ✓
         </span>
       </div>
-      {level.type === "trivia" && <TriviaRound key={roundIndex} onResult={handleRoundResult} />}
-      {level.type === "shootout" && <ShootoutRound key={roundIndex} onResult={handleRoundResult} />}
-      {level.type === "reaction" && <ReactionRound key={roundIndex} onResult={handleRoundResult} />}
+      {level.type === "juggle" && <JuggleRound key={roundIndex} onResult={handleRoundResult} />}
+      {level.type === "penalty" && <PenaltyRound key={roundIndex} onResult={handleRoundResult} />}
+      {level.type === "track" && <TrackRound key={roundIndex} onResult={handleRoundResult} />}
+      {level.type === "keeper" && <KeeperRound key={roundIndex} onResult={handleRoundResult} />}
       <button style={{ ...styles.skipBtn, marginTop: 14 }} onClick={onExit}>
         Quit to Map
       </button>
@@ -2997,13 +3220,21 @@ const styles = {
     backgroundImage:
       "repeating-linear-gradient(0deg, transparent, transparent 10px, rgba(241,239,231,0.15) 11px), repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(241,239,231,0.15) 11px)",
   },
-  keeper: {
-    position: "absolute",
-    top: 34,
-    fontSize: 46,
-    transform: "translateX(-50%)",
-    transition: "left 0.4s ease-out",
+  arena: {
+    position: "relative",
+    background: "linear-gradient(180deg, rgba(95,168,90,0.15), rgba(95,168,90,0.03))",
+    borderRadius: 14,
+    border: "1px solid var(--line)",
+    overflow: "hidden",
+    touchAction: "none",
+    userSelect: "none",
+    WebkitUserSelect: "none",
   },
+  arenaHint: { position: "absolute", left: 0, right: 0, bottom: 14, textAlign: "center", color: "var(--chalk)", fontSize: 15, fontWeight: 600, pointerEvents: "none", padding: "0 12px" },
+  arenaBigCount: { position: "absolute", top: "30%", left: 0, right: 0, textAlign: "center", fontSize: 64, color: "rgba(241,239,231,0.12)", pointerEvents: "none" },
+  powerTrack: { position: "relative", height: 18, marginTop: 12, borderRadius: 9, background: "var(--bg-elev2)", border: "1px solid var(--line)", overflow: "hidden" },
+  powerZone: { position: "absolute", top: 0, bottom: 0, left: "35%", width: "50%", background: "rgba(95,168,90,0.45)" },
+  powerMarker: { position: "absolute", top: -2, bottom: -2, width: 6, marginLeft: -3, background: "var(--amber)", borderRadius: 3 },
   ball: {
     position: "absolute",
     fontSize: 38,
@@ -3020,14 +3251,17 @@ const styles = {
   },
   privacyNote: { background: "rgba(127,168,201,0.12)", border: "1px solid rgba(127,168,201,0.3)", color: "var(--sky)", fontSize: 14, borderRadius: 12, padding: "12px 14px", lineHeight: 1.55 },
   privacyNoteSmall: { background: "rgba(127,168,201,0.1)", color: "var(--sky)", fontSize: 13, borderRadius: 10, padding: "8px 12px", display: "inline-block", lineHeight: 1.5 },
-  numberGrid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, maxHeight: 300, overflowY: "auto", padding: 8, background: "var(--bg-elev)", borderRadius: 12, border: "1px solid var(--line)" },
-  numberCell: { border: "1px solid var(--line)", borderRadius: 10, padding: "14px 0", fontSize: 18, fontWeight: 700, fontFamily: "'Space Mono', monospace" },
+  // No inner scroll box: on iPhone Safari a tap inside a nested scroller is
+  // often taken as the start of a scroll and never becomes a click.
+  numberGrid: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, padding: 8, background: "var(--bg-elev)", borderRadius: 12, border: "1px solid var(--line)" },
+  numberCell: { borderWidth: 2, borderStyle: "solid", borderRadius: 10, padding: "12px 0", fontSize: 18, fontWeight: 700, fontFamily: "'Space Mono', monospace", touchAction: "manipulation", WebkitTapHighlightColor: "transparent" },
   lineupBoardWrap: { padding: "0 18px 16px", borderBottom: "1px solid var(--line)", marginBottom: 16 },
   trackLane: { background: "linear-gradient(180deg, rgba(95,168,90,0.08), rgba(95,168,90,0.02))", borderRadius: 14, padding: "12px 12px 6px" },
   lineupBoardEmpty: { padding: "0 18px 16px", borderBottom: "1px solid var(--line)", marginBottom: 16, color: "var(--chalk-dim)", fontSize: 15 },
   // 16px keeps iOS Safari from auto-zooming the page whenever a field is focused.
   input: { width: "100%", background: "var(--bg-elev2)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 16px", color: "var(--chalk)", fontSize: 16, outline: "none" },
   primaryBtn: { background: "var(--turf-bright)", color: "#10151A", border: "none", borderRadius: 12, padding: "16px 20px", fontSize: 17, fontWeight: 700, cursor: "pointer", minHeight: 52 },
+  backBtn: { background: "transparent", border: "none", color: "var(--chalk-dim)", fontSize: 15, padding: "8px 0", marginBottom: 6, cursor: "pointer", touchAction: "manipulation" },
   skipBtn: { background: "transparent", color: "var(--chalk-dim)", border: "none", padding: "12px 0", fontSize: 15, cursor: "pointer", width: "100%", textAlign: "center" },
   moodBtn: { border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px", fontSize: 16, fontWeight: 600, cursor: "pointer", minHeight: 52 },
   chip: { border: "1px solid var(--line)", borderRadius: 22, padding: "10px 16px", fontSize: 15, background: "transparent", cursor: "pointer", minHeight: 42 },

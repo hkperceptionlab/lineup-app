@@ -2,8 +2,8 @@
 
 An installable web app for the Marianapolis Prep Girls' Soccer JV team — the
 Golden Knights. A private daily check-in, guided warm-up stretches, cheers
-between teammates, the season schedule, soccer knowledge, and a four-level
-mini-game series.
+for the team, the season schedule, soccer knowledge, a four-level skill-game
+series, and an unscored breathing corner for pre-game nerves.
 
 **Live:** https://hkperceptionlab.github.io/lineup-app/ (team word required)
 
@@ -34,8 +34,24 @@ If checking in earned points, the leaderboard would quietly become a list of
 who is keeping up and who isn't — exactly the thing a struggling player does
 not need. `submitCheckin` doesn't touch `socialPoints` at all.
 
-Cheer points are also capped: five a day, and only one per teammate. Without
-that cap the top of the leaderboard is just whoever typed "ok" thirty times.
+Cheer points are also capped: three cheers a day. Without that cap the top of
+the leaderboard is just whoever typed "ok" thirty times.
+
+### Numbers are made up, so cheers go to the team
+
+Players pick any number they like — explicitly *not* their real jersey
+number, or the number would just be their name with extra steps. The cost of
+that is that nobody knows who #7 is, and asking a new player to cheer a
+stranger (which onboarding used to do) is awkward. So a cheer is addressed to
+the whole team, and the onboarding "first cheer" step is gone.
+
+### The calm corner has no score
+
+Knight's Quest is four real games — juggling, a penalty with aim and power
+timing, a focus game (follow the gold balls through a shuffle), and a
+goalkeeper round. The breathing exercises next to it are deliberately not a
+level: no pass or fail, no points, nothing saved. Grading the thing meant to
+calm you down defeats the point.
 
 ### The anonymous wall was built, then removed
 
@@ -62,7 +78,7 @@ someone who can respond.
 
 ### The passcode is a doorbell, not a lock
 
-The app has no logins, so anyone with the URL could claim a jersey number and
+The app has no logins, so anyone with the URL could claim a player number and
 post to the team wall. `PasscodeGate` asks for a word the coach hands out.
 
 It is honest about what it is. This is a static site: the expected word ships
@@ -70,7 +86,7 @@ inside the JavaScript bundle, next to the Supabase publishable key, so anyone
 determined can skip the screen and query the database directly. It stops the
 accidental visitor, which is the realistic threat. Real protection would mean
 Supabase Auth with row-level security, where the check runs server-side — a
-worthwhile trade only if the data ever becomes worth it. Jersey numbers and
+worthwhile trade only if the data ever becomes worth it. Made-up numbers and
 "Let's go!" are not.
 
 ### The day runs on Thompson, Connecticut
