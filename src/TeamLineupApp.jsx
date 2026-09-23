@@ -520,7 +520,7 @@ export default function TeamLineupApp() {
       // If this device's saved identity is a leftover free-text nickname from
       // before the jersey-number system, treat it as not-joined so onboarding
       // (number → avatar → stretch) runs again with a real number.
-      if (myName && /^[0-9]+$/.test(myName)) setMe(myName);
+      const savedNumber = myName && /^[0-9]+$/.test(myName) ? myName : null;
       if (log) setMyLog(log);
       if (stretchLog) setMyStretchLog(stretchLog);
       if (teamState) {
@@ -536,8 +536,13 @@ export default function TeamLineupApp() {
           merged.seasonSeed = SEASON_ID;
         }
         setTeam(merged);
+        // A number the team no longer lists (the roster was reset, or it was
+        // released) would be a ghost player: in the app but not on the team.
+        // Send this device through sign-up again instead.
+        if (savedNumber && merged.players.includes(savedNumber)) setMe(savedNumber);
       } else {
         setTeam({ ...loadDefaultTeamState(), schedule: [...SEASON_SCHEDULE], seasonSeed: SEASON_ID });
+        if (savedNumber) setMe(savedNumber);
       }
       setReady(true);
     })();
