@@ -110,9 +110,12 @@ worthwhile trade only if the data ever becomes worth it. Made-up numbers and
 
 ### Everything competitive is weekly
 
-Cheers shown, crowns, ranking points, the co-op mission and Knight's Quest
-levels all belong to one Monday-to-Sunday week (team time) and start over
-every Monday. A cumulative board would belong to whoever started first; a
+Cheers shown, crowns, ranking points, the co-op mission, Knight's Quest
+levels, the team wall and the coach's inbox all belong to one
+Monday-to-Sunday week (team time) and start over every Monday. Only the
+schedule carries across. The inbox keeps last week's messages behind a
+"Last week" fold for one more week, so a message sent Sunday night can't
+disappear before the coach's Monday look. A cumulative board would belong to whoever started first; a
 player who joins in October should be able to top it that week.
 
 There is no scheduled job: the team state carries `week`, and the first load

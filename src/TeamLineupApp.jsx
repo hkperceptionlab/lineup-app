@@ -398,6 +398,11 @@ function getThisWeekDays() {
   return days;
 }
 const inThisWeek = (ts) => dateKey(new Date(ts)) >= weekStartKey();
+const inLastWeek = (ts) => {
+  const k = dateKey(new Date(ts));
+  const start = weekStartKey();
+  return k < start && k >= shiftKey(start, 7);
+};
 
 // Personal streak badges (private, shown only on my own screen)
 const STREAK_BADGES = [
@@ -1651,7 +1656,11 @@ function CoachView({ team, onSignOut, onRefresh, onAddGame, onAddResult, onPostW
   const days = getThisWeekDays();
   const roster = team.players.length;
   const today = todayKey();
-  const inbox = team.coachInbox || [];
+  // This week's messages up top; last week's stay one more week behind a
+  // fold, so a message sent Sunday night isn't gone before Monday's look.
+  const inbox = (team.coachInbox || []).filter((m) => m.ts && inThisWeek(m.ts));
+  const lastWeekInbox = (team.coachInbox || []).filter((m) => m.ts && inLastWeek(m.ts));
+  const [showLastWeek, setShowLastWeek] = useState(false);
   const maxCount = Math.max(1, roster, ...days.map((d) => team.aggregateCheckins[d] || 0));
   const dayLabel = (key) =>
     key === today ? "Today" : new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "UTC" });
@@ -1701,10 +1710,10 @@ function CoachView({ team, onSignOut, onRefresh, onAddGame, onAddResult, onPostW
         <div style={{ ...styles.card, marginTop: 14 }}>
           <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 2 }}>📮 Anonymous Messages</div>
           <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>
-            From players, with no name or number. Players can send these but can't read them. Tap Refresh to check for new ones.
+            From players, with no name or number. Players can send these but can't read them. Tap Refresh to check for new ones. This week's messages; last week's stay one more week below.
           </div>
           {inbox.length === 0 ? (
-            <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No messages yet.</div>
+            <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No messages this week.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {inbox.slice(0, 50).map((m) => (
@@ -1713,6 +1722,23 @@ function CoachView({ team, onSignOut, onRefresh, onAddGame, onAddResult, onPostW
                   <div style={{ color: "var(--chalk)", fontSize: 16, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.message}</div>
                 </div>
               ))}
+            </div>
+          )}
+          {lastWeekInbox.length > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--line)" }}>
+              <button onClick={() => setShowLastWeek((v) => !v)} style={{ ...styles.skipBtn, padding: 0, textAlign: "left" }}>
+                {showLastWeek ? "▾" : "▸"} Last week ({lastWeekInbox.length})
+              </button>
+              {showLastWeek && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                  {lastWeekInbox.map((m) => (
+                    <div key={m.id} style={{ ...styles.cheerRow, opacity: 0.8 }}>
+                      <div style={{ color: "var(--chalk-dim)", fontSize: 12, marginBottom: 3 }}>{timeAgo(m.ts)}</div>
+                      <div style={{ color: "var(--chalk)", fontSize: 16, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -3196,6 +3222,7 @@ function TeamTab({ schedule, onAddGame, onAddResult, onSendCoachMessage, teamWal
   const [showMentalTips, setShowMentalTips] = useState(false);
 
   const sorted = [...schedule].sort((a, b) => (a.date < b.date ? -1 : 1));
+  const weekWall = teamWall.filter((p) => p.ts && inThisWeek(p.ts));
   const upcoming = sorted.filter((g) => g.date >= todayKey());
   const past = sorted.filter((g) => g.date < todayKey()).reverse();
 
@@ -3248,7 +3275,7 @@ function TeamTab({ schedule, onAddGame, onAddResult, onSendCoachMessage, teamWal
       <div style={{ ...styles.card, marginTop: 14 }}>
         <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>📣 Team Wall</div>
         <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>
-          A public space for the whole team — post a shoutout, a goal for the week, anything. Everyone on the team can read it; posts show as "A teammate", not your number.
+          A public space for the whole team — post a shoutout, a goal for the week, anything. Everyone on the team can read it; posts show as "A teammate", not your number. A fresh wall every Monday.
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <input
@@ -3262,8 +3289,8 @@ function TeamTab({ schedule, onAddGame, onAddResult, onSendCoachMessage, teamWal
           </button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {teamWall.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>Nothing posted yet. Be the first!</div>}
-          {teamWall.slice(0, 30).map((post) => (
+          {weekWall.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>Nothing posted this week. Be the first!</div>}
+          {weekWall.slice(0, 30).map((post) => (
             <WallPost key={post.id} post={post} me={me} onReply={(reply) => onReplyWall(post.id, reply)} />
           ))}
         </div>
