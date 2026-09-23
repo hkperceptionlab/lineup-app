@@ -480,6 +480,32 @@ function loadDefaultPersonalLog() {
   return {}; // { "2026-08-03": { mood } }
 }
 
+// The coach's word, stored only as a SHA-256 of its normalized form so the
+// public repo and the bundle don't spell it out. Still a doorbell, not a
+// lock: the data itself is readable with the public Supabase key.
+const COACH_WORD_SHA256 = "4c640a3e8038e5236872b7143b5250cc6695354cb044ba8281550916fcc1b82d";
+const normalizeWord = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// Cleans up whatever is stored (older formats included) into the current shape.
+function mergeTeamState(teamState) {
+  const merged = { ...loadDefaultTeamState(), ...teamState };
+  const isNumeric = (p) => /^[0-9]+$/.test(p);
+  merged.players = merged.players.filter(isNumeric);
+  merged.cheers = merged.cheers.filter((c) => isNumeric(c.from) && (c.to === "team" || isNumeric(c.to)));
+  merged.socialPoints = Object.fromEntries(Object.entries(merged.socialPoints).filter(([k]) => isNumeric(k)));
+  merged.avatarStyles = Object.fromEntries(Object.entries(merged.avatarStyles).filter(([k]) => isNumeric(k)));
+  if (merged.seasonSeed !== SEASON_ID) {
+    const existing = new Set((merged.schedule || []).map((g) => g.id));
+    merged.schedule = [...(merged.schedule || []), ...SEASON_SCHEDULE.filter((g) => !existing.has(g.id))];
+    merged.seasonSeed = SEASON_ID;
+  }
+  return merged;
+}
+
 async function safeGet(key, shared) {
   try {
     const res = await window.storage.get(key, shared);
@@ -499,6 +525,7 @@ async function safeSet(key, value, shared) {
 export default function TeamLineupApp() {
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState(null);
+  const [coach, setCoach] = useState(false);
   const [team, setTeam] = useState(loadDefaultTeamState());
   const [myLog, setMyLog] = useState(loadDefaultPersonalLog());
   const [myStretchLog, setMyStretchLog] = useState({});
@@ -523,18 +550,9 @@ export default function TeamLineupApp() {
       const savedNumber = myName && /^[0-9]+$/.test(myName) ? myName : null;
       if (log) setMyLog(log);
       if (stretchLog) setMyStretchLog(stretchLog);
+      if ((await safeGet("coach-mode", false)) === true) setCoach(true);
       if (teamState) {
-        const merged = { ...loadDefaultTeamState(), ...teamState };
-        const isNumeric = (p) => /^[0-9]+$/.test(p);
-        merged.players = merged.players.filter(isNumeric);
-        merged.cheers = merged.cheers.filter((c) => isNumeric(c.from) && (c.to === "team" || isNumeric(c.to)));
-        merged.socialPoints = Object.fromEntries(Object.entries(merged.socialPoints).filter(([k]) => isNumeric(k)));
-        merged.avatarStyles = Object.fromEntries(Object.entries(merged.avatarStyles).filter(([k]) => isNumeric(k)));
-        if (merged.seasonSeed !== SEASON_ID) {
-          const existing = new Set((merged.schedule || []).map((g) => g.id));
-          merged.schedule = [...(merged.schedule || []), ...SEASON_SCHEDULE.filter((g) => !existing.has(g.id))];
-          merged.seasonSeed = SEASON_ID;
-        }
+        const merged = mergeTeamState(teamState);
         setTeam(merged);
         // A number the team no longer lists (the roster was reset, or it was
         // released) would be a ghost player: in the app but not on the team.
@@ -705,23 +723,43 @@ export default function TeamLineupApp() {
     await persistTeam(next);
   };
 
+  // Coach view: its own door, no player number, so the coach never lands on
+  // the roster or the ranking, and is the only screen that lists the inbox.
+  const coachSignIn = async (word) => {
+    if ((await sha256Hex(normalizeWord(word))) !== COACH_WORD_SHA256) return "That's not the coach word.";
+    await safeSet("coach-mode", true, false);
+    setCoach(true);
+    return null;
+  };
+  const coachSignOut = async () => {
+    await safeSet("coach-mode", false, false);
+    setCoach(false);
+  };
+  // Shared state is otherwise read once at launch; the coach needs new
+  // inbox messages without closing the app.
+  const reloadTeam = async () => {
+    const teamState = await safeGet("lineup-team-state", true);
+    if (teamState) setTeam(mergeTeamState(teamState));
+  };
+
   // Team Wall — public shoutout board, visible to the whole team (not anonymous, unlike the coach inbox)
+  const author = coach ? "coach" : me;
   const postToWall = async (message) => {
-    if (!message.trim() || !me) return;
+    if (!message.trim() || !author) return;
     const next = {
       ...team,
-      teamWall: [{ id: `w${Date.now()}`, from: me, message: message.trim(), replies: [], ts: Date.now() }, ...(team.teamWall || [])].slice(0, 200),
-      socialPoints: { ...team.socialPoints, [me]: (team.socialPoints[me] || 0) + 1 },
+      teamWall: [{ id: `w${Date.now()}`, from: author, message: message.trim(), replies: [], ts: Date.now() }, ...(team.teamWall || [])].slice(0, 200),
+      socialPoints: coach ? team.socialPoints : { ...team.socialPoints, [me]: (team.socialPoints[me] || 0) + 1 },
     };
     await persistTeam(next);
   };
 
   const replyToWall = async (postId, reply) => {
-    if (!reply.trim() || !me) return;
+    if (!reply.trim() || !author) return;
     const next = {
       ...team,
       teamWall: (team.teamWall || []).map((p) =>
-        p.id === postId ? { ...p, replies: [...(p.replies || []), { id: `wr${Date.now()}`, from: me, message: reply.trim(), ts: Date.now() }] } : p
+        p.id === postId ? { ...p, replies: [...(p.replies || []), { id: `wr${Date.now()}`, from: author, message: reply.trim(), ts: Date.now() }] } : p
       ),
     };
     await persistTeam(next);
@@ -757,10 +795,26 @@ export default function TeamLineupApp() {
 
   if (!ready) return <ShellFonts><LoadingScreen /></ShellFonts>;
 
+  if (coach) {
+    return (
+      <ShellFonts>
+        <CoachView
+          team={team}
+          onSignOut={coachSignOut}
+          onRefresh={reloadTeam}
+          onAddGame={addGame}
+          onAddResult={addGameResult}
+          onPostWall={postToWall}
+          onReplyWall={replyToWall}
+        />
+      </ShellFonts>
+    );
+  }
+
   if (!me) {
     return (
       <ShellFonts>
-        <Onboarding takenNumbers={team.players} onComplete={finishOnboarding} />
+        <Onboarding takenNumbers={team.players} onComplete={finishOnboarding} onCoachSignIn={coachSignIn} />
       </ShellFonts>
     );
   }
@@ -830,12 +884,10 @@ export default function TeamLineupApp() {
           {tab === "team" && (
             <TeamTab
               schedule={team.schedule || []}
-              coachInbox={team.coachInbox || []}
               onAddGame={addGame}
               onAddResult={addGameResult}
               onSendCoachMessage={sendCoachMessage}
               teamWall={team.teamWall || []}
-              avatarStyles={team.avatarStyles}
               me={me}
               onPostWall={postToWall}
               onReplyWall={replyToWall}
@@ -1211,7 +1263,7 @@ function AvatarCustomizer({
   );
 }
 
-function Onboarding({ takenNumbers, onComplete }) {
+function Onboarding({ takenNumbers, onComplete, onCoachSignIn }) {
   const [step, setStep] = useState(0);
   const [number, setNumber] = useState(null);
   const [glasses, setGlasses] = useState(false);
@@ -1230,6 +1282,8 @@ function Onboarding({ takenNumbers, onComplete }) {
   const [stretchDone, setStretchDone] = useState(false);
   const [joinError, setJoinError] = useState(null);
   const [typed, setTyped] = useState("");
+  const [coachWord, setCoachWord] = useState("");
+  const [coachError, setCoachError] = useState(null);
 
   const avatarPreview = <PlayerAvatar number={number || "?"} size={100} glasses={glasses} furStyle={furStyle} bow={bow} bowColor={bowColor} skinTone={skinTone} hairColor={hairColor} sockColor={sockColor} color={jerseyColor} />;
 
@@ -1307,6 +1361,35 @@ function Onboarding({ takenNumbers, onComplete }) {
         <div style={{ ...styles.privacyNote, marginTop: 14 }}>
           🔒 Your mood is visible only to you. The team only sees anonymous counts — never who.
         </div>
+        <button type="button" onClick={() => setStep("coach")} style={{ ...styles.skipBtn, marginTop: 10 }}>
+          Coach? Sign in here
+        </button>
+      </StepShell>
+    );
+  }
+
+  if (step === "coach") {
+    const submitCoach = async (e) => {
+      e.preventDefault();
+      const err = await onCoachSignIn(coachWord);
+      setCoachError(err);
+    };
+    return (
+      <StepShell onBack={() => { setCoachError(null); setStep(0); }} title="Coach Sign-In" subtitle="Coaches don't pick a number, so you won't show up on the roster or the ranking.">
+        <form onSubmit={submitCoach}>
+          <input
+            type="password"
+            autoComplete="off"
+            value={coachWord}
+            onChange={(e) => { setCoachWord(e.target.value); setCoachError(null); }}
+            placeholder="Coach word"
+            style={{ ...styles.input, marginBottom: 10 }}
+          />
+          {coachError && <div style={{ color: "var(--danger)", fontSize: 15, textAlign: "center", marginBottom: 10 }}>{coachError}</div>}
+          <button type="submit" disabled={!coachWord.trim()} style={{ ...styles.primaryBtn, width: "100%", opacity: coachWord.trim() ? 1 : 0.4 }}>
+            Sign In
+          </button>
+        </form>
       </StepShell>
     );
   }
@@ -1532,6 +1615,98 @@ function Onboarding({ takenNumbers, onComplete }) {
         Enter the Lineup
       </button>
     </StepShell>
+  );
+}
+
+/* ── Coach view ────────────────────────────── */
+
+// Counts only, like everywhere else: the coach sees how many checked in, never
+// who or what mood. The inbox is listed here and nowhere else.
+function CoachView({ team, onSignOut, onRefresh, onAddGame, onAddResult, onPostWall, onReplyWall }) {
+  const [refreshing, setRefreshing] = useState(false);
+  const days = getLast7Days();
+  const roster = team.players.length;
+  const today = todayKey();
+  const inbox = team.coachInbox || [];
+  const maxCount = Math.max(1, roster, ...days.map((d) => team.aggregateCheckins[d] || 0));
+  const dayLabel = (key) =>
+    key === today ? "Today" : new Date(`${key}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric", timeZone: "UTC" });
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await onRefresh();
+    setRefreshing(false);
+  };
+
+  return (
+    <div style={styles.app}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 18px 8px" }}>
+        <div>
+          <div style={{ color: "var(--amber)", fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>{TEAM_NAME}</div>
+          <div className="lineup-display" style={{ fontSize: 26, color: "var(--chalk)" }}>Coach View</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <button onClick={refresh} style={{ ...styles.chip, padding: "6px 12px" }}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
+          <button onClick={onSignOut} style={{ ...styles.skipBtn, padding: 0, width: "auto", fontSize: 13 }}>Sign out</button>
+        </div>
+      </div>
+      <div style={styles.content}>
+        <div style={styles.card}>
+          <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 2 }}>📊 This Week</div>
+          <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>
+            {roster} player{roster === 1 ? "" : "s"} signed up. Counts only — moods and names are never sent anywhere.
+          </div>
+          {days.map((d) => {
+            const c = team.aggregateCheckins[d] || 0;
+            const s = team.dailyStretches[d] || 0;
+            return (
+              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <div style={{ width: 70, color: d === today ? "var(--chalk)" : "var(--chalk-dim)", fontSize: 13, fontWeight: d === today ? 700 : 400 }}>{dayLabel(d)}</div>
+                <div style={{ flex: 1, height: 10, borderRadius: 5, background: "var(--bg-elev2)", overflow: "hidden" }}>
+                  <div style={{ width: `${(c / maxCount) * 100}%`, height: "100%", background: "var(--turf-bright)" }} />
+                </div>
+                <div className="lineup-mono" style={{ width: 92, textAlign: "right", color: "var(--chalk-dim)", fontSize: 12 }}>
+                  ✅ {c} · 🧘 {s}
+                </div>
+              </div>
+            );
+          })}
+          <div style={{ color: "var(--chalk-dim)", fontSize: 12, marginTop: 4 }}>✅ check-ins · 🧘 warm-ups</div>
+        </div>
+
+        <div style={{ ...styles.card, marginTop: 14 }}>
+          <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 2 }}>📮 Anonymous Messages</div>
+          <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>
+            From players, with no name or number. Players can send these but can't read them. Tap Refresh to check for new ones.
+          </div>
+          {inbox.length === 0 ? (
+            <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No messages yet.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {inbox.slice(0, 50).map((m) => (
+                <div key={m.id} style={styles.cheerRow}>
+                  <div style={{ color: "var(--chalk-dim)", fontSize: 12, marginBottom: 3 }}>{m.ts ? timeAgo(m.ts) : ""}</div>
+                  <div style={{ color: "var(--chalk)", fontSize: 16, lineHeight: 1.4, overflowWrap: "anywhere" }}>{m.message}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <TeamTab
+            schedule={team.schedule || []}
+            onAddGame={onAddGame}
+            onAddResult={onAddResult}
+            teamWall={team.teamWall || []}
+            me="coach"
+            onPostWall={onPostWall}
+            onReplyWall={onReplyWall}
+            isCoach
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2986,7 +3161,7 @@ function GameRow({ game, onAddResult }) {
   );
 }
 
-function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMessage, teamWall, avatarStyles, me, onPostWall, onReplyWall }) {
+function TeamTab({ schedule, onAddGame, onAddResult, onSendCoachMessage, teamWall, me, onPostWall, onReplyWall, isCoach = false }) {
   const [showAddGame, setShowAddGame] = useState(false);
   const [coachMsg, setCoachMsg] = useState("");
   const [justSent, setJustSent] = useState(false);
@@ -3069,10 +3244,11 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
         </div>
       </div>
 
+      {!isCoach && (
       <div style={{ ...styles.card, marginTop: 14 }}>
         <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>📮 Anonymous Message to Coach</div>
         <div style={styles.privacyNoteSmall}>
-          🔒 Your name is never attached. Note: without a login system, anyone who opens this tab can read these messages too — this is anonymous, not private from teammates.
+          🔒 No name or number is attached, and teammates can't read it here — only the coach view lists these messages.
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
           {COACH_PRESETS.map((t) => (
@@ -3090,20 +3266,8 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
         <button style={{ ...styles.primaryBtn, width: "100%" }} onClick={send} disabled={!coachMsg.trim()}>
           {justSent ? "Sent \u2713" : "Send Anonymously"}
         </button>
-
-        {coachInbox.length > 0 && (
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--line)" }}>
-            <div style={{ color: "var(--chalk-dim)", fontSize: 13, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Messages Sent</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {coachInbox.slice(0, 20).map((m) => (
-                <div key={m.id} style={styles.cheerRow}>
-                  <div style={{ color: "var(--chalk)", fontSize: 15 }}>{m.message}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
+      )}
 
       <div style={{ ...styles.card, marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -3167,7 +3331,7 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
 
 // Same reason as cheers: a number or a custom avatar next to a post you just
 // wrote hands your number to whoever is standing beside you.
-const whoLabel = (from, me) => (from === me ? "You" : "A teammate");
+const whoLabel = (from, me) => (from === me ? "You" : from === "coach" ? `Coach ${COACH_NAME.replace("Mr. ", "")}` : "A teammate");
 
 function WallPost({ post, me, onReply }) {
   const [showReply, setShowReply] = useState(false);

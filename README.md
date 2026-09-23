@@ -108,6 +108,20 @@ Supabase Auth with row-level security, where the check runs server-side — a
 worthwhile trade only if the data ever becomes worth it. Made-up numbers and
 "Let's go!" are not.
 
+### The coach has a separate door
+
+"Coach? Sign in here" on the welcome screen takes a coach word instead of a
+player number, so the coach never appears on the roster, the ranking, or in
+the "how many checked in" denominator. The coach view shows the week's
+check-in and warm-up counts (counts only, like everywhere else), the
+anonymous inbox — the only place it is listed — plus the schedule and the
+wall, where the coach's posts are signed "Coach Brooks". A Refresh button
+re-reads the shared state, since the app otherwise reads it once at launch.
+
+The coach word is not in the source: `COACH_WORD_SHA256` holds a SHA-256 of
+its normalized form (lowercase, letters and digits only). To change it,
+replace that hash. Like the team word, it is a doorbell.
+
 ### The day runs on Thompson, Connecticut
 
 Dates were originally derived from `toISOString()`, which is UTC. In Connecticut
@@ -193,5 +207,6 @@ Repo Settings → Pages → Source must be set to **GitHub Actions**.
   saving in the same moment can overwrite each other. Acceptable at 15
   players; it would need per-row writes to scale.
 - **Shared state is read once at launch.** Reopen the app to see new posts.
-- **Anonymous is not private.** The coach inbox has no sender attached, but
-  anyone who opens the team tab can read it. The UI says so.
+- **The coach inbox is hidden, not secured.** Players can send to it but only
+  the coach view lists it. The data still sits in the same Supabase row that
+  the public key can read, so a determined person could get to it.
