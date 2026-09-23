@@ -4,3 +4,7 @@ dist
 .vercel
 
 .vercel
+
+# Kokoro model files for scripts/make_voice.py (~350MB, downloaded, never committed)
+scripts/*.onnx
+scripts/*.bin

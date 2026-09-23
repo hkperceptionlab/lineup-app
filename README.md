@@ -51,13 +51,18 @@ up right then, which hands them your number, and with it your ranking.
 Crowns and points still count by number underneath; only the ranking shows
 it, since a ranking has to name someone.
 
-### The warm-up voice picks a voice
+### The warm-up voice is pre-rendered
 
-Without one chosen, the browser uses its default, which on Windows and many
-phones is the oldest, most robotic voice. `pickVoice` ranks what the device
-has (Natural/Enhanced/Siri/Google voices first, the novelty and legacy ones
-last). A real recording beats all of them: drop `public/voice/<move key>.mp3`
-into the repo, add the key to `RECORDED_CLIPS`, and that clip plays instead.
+Phone voices range from decent to robotic, and which one you get depends on
+the phone. So every spoken line is an MP3 in `public/voice/`, rendered once
+with [Kokoro](https://github.com/hexgrad/kokoro) (Apache-2.0, voice
+`af_heart`) by `scripts/make_voice.py`, loudness-normalized so it carries
+outdoors, and precached for offline use (~0.7 MB). Everyone hears the same
+natural voice. The device voice (`pickVoice`, best available first) is only
+the fallback if a clip fails to load.
+
+If a move's `say` text changes, re-run the script — it reads the lines from
+the app source, so clip and script can't drift apart.
 
 ### The calm corner has no score
 

@@ -255,11 +255,13 @@ const playLevelClearSound = () => {
 };
 
 /* ── Warm-up voice ─────────────────────────────
-   Recorded clips win when they exist; otherwise the device's best voice.
-   To add a real recording: drop public/voice/<move key>.mp3 (and
-   switch.mp3 for "Switch sides.") and add the key to RECORDED_CLIPS. The
-   set exists so we never fetch a clip that isn't there. */
-const RECORDED_CLIPS = new Set([]);
+   Every line is a pre-rendered clip in public/voice/<move key>.mp3, made by
+   scripts/make_voice.py with Kokoro (Apache-2.0, voice af_heart) — far more
+   human than any phone's built-in voice, and the same on every phone. The
+   device voice is only the fallback if a clip fails to load. If you change a
+   move's `say` text, re-run the script; a clip not listed here is never
+   fetched. */
+const RECORDED_CLIPS = new Set(["reach", "side", "twist", "toe", "circles", "shoulders", "crossbody", "quad", "lunge", "calf", "switch"]);
 
 // Without a chosen voice the browser uses its default, which on Windows and
 // on many phones is the oldest, most robotic one. Rank what the device has.
@@ -286,7 +288,8 @@ if (typeof window !== "undefined" && "speechSynthesis" in window) {
 // One shared element: iOS only lets an <audio> play from a timer if that same
 // element was first played inside a tap (see unlockVoice).
 let clipPlayer = null;
-const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+// 0.1s of real silence — an empty file may not count as "played" on iOS.
+const SILENT_WAV = "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==";
 
 function unlockVoice() {
   if ("speechSynthesis" in window) {
