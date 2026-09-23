@@ -497,7 +497,7 @@ function loadDefaultPersonalLog() {
 // The coach's word, stored only as a SHA-256 of its normalized form so the
 // public repo and the bundle don't spell it out. Still a doorbell, not a
 // lock: the data itself is readable with the public Supabase key.
-const COACH_WORD_SHA256 = "4c640a3e8038e5236872b7143b5250cc6695354cb044ba8281550916fcc1b82d";
+const COACH_WORD_SHA256 = "dd56de4137951d9c92681b03416ec15f886b4482a27e3a517d32f085244cbe5d";
 const normalizeWord = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
