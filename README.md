@@ -45,6 +45,20 @@ that is that nobody knows who #7 is, and asking a new player to cheer a
 stranger (which onboarding used to do) is awkward. So a cheer is addressed to
 the whole team, and the onboarding "first cheer" step is gone.
 
+The number isn't printed next to cheers or wall posts either — they show as
+"You" or "A teammate". Send a cheer standing next to a friend and "#68" pops
+up right then, which hands them your number, and with it your ranking.
+Crowns and points still count by number underneath; only the ranking shows
+it, since a ranking has to name someone.
+
+### The warm-up voice picks a voice
+
+Without one chosen, the browser uses its default, which on Windows and many
+phones is the oldest, most robotic voice. `pickVoice` ranks what the device
+has (Natural/Enhanced/Siri/Google voices first, the novelty and legacy ones
+last). A real recording beats all of them: drop `public/voice/<move key>.mp3`
+into the repo, add the key to `RECORDED_CLIPS`, and that clip plays instead.
+
 ### The calm corner has no score
 
 Knight's Quest is four real games — juggling, a penalty with aim and power

@@ -52,8 +52,9 @@ const MOODS = [
 
 // A closed set, on purpose. Nothing here can carry an insult, a name, or
 // something a 14-year-old would regret, so there is nothing to moderate.
-// Sent to the whole team, from nobody in particular: no sender, no target,
-// no count, no points. It is weather, not a scoreboard.
+// Optional icon on a cheer. These used to be a separate anonymous button row
+// that sent on tap, which read as "select" with no way to unselect; now you
+// pick one (or none) and it goes out with the cheer.
 const KUDOS = [
   { key: "keepgoing", icon: "💪", label: "Keep going" },
   { key: "proud", icon: "❤️", label: "Proud of you" },
@@ -252,6 +253,128 @@ const playCrownSound = () => {
 const playLevelClearSound = () => {
   [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => playTone(f, i * 0.07, 0.2, "triangle", 0.12));
 };
+
+/* ── Warm-up voice ─────────────────────────────
+   Recorded clips win when they exist; otherwise the device's best voice.
+   To add a real recording: drop public/voice/<move key>.mp3 (and
+   switch.mp3 for "Switch sides.") and add the key to RECORDED_CLIPS. The
+   set exists so we never fetch a clip that isn't there. */
+const RECORDED_CLIPS = new Set([]);
+
+// Without a chosen voice the browser uses its default, which on Windows and
+// on many phones is the oldest, most robotic one. Rank what the device has.
+const GOOD_VOICE = /natural|neural|premium|enhanced|siri|google/i;
+const NICE_NAMES = /samantha|ava|aria|jenny|allison|susan|karen|serena|moira|tessa|daniel|libby|sonia|emma|michelle/i;
+const BAD_VOICE = /zira|david|mark|fred|albert|compact|espeak|bahh|bells|boing|bubbles|cellos|jester|organ|superstar|trinoids|whisper|wobble|zarvox|junior|ralph|kathy|bad news|good news/i;
+let cachedVoice;
+function pickVoice() {
+  if (cachedVoice !== undefined) return cachedVoice;
+  if (!("speechSynthesis" in window)) return (cachedVoice = null);
+  const voices = window.speechSynthesis.getVoices().filter((v) => /^en[-_]/i.test(v.lang));
+  if (!voices.length) return null; // not loaded yet — don't cache, ask again next line
+  const score = (v) =>
+    (GOOD_VOICE.test(v.name) ? 6 : 0) + (NICE_NAMES.test(v.name) ? 3 : 0) + (/en[-_]US/i.test(v.lang) ? 1 : 0) - (BAD_VOICE.test(v.name) ? 10 : 0);
+  cachedVoice = [...voices].sort((a, b) => score(b) - score(a))[0];
+  return cachedVoice;
+}
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  window.speechSynthesis.addEventListener?.("voiceschanged", () => {
+    cachedVoice = undefined;
+  });
+}
+
+// One shared element: iOS only lets an <audio> play from a timer if that same
+// element was first played inside a tap (see unlockVoice).
+let clipPlayer = null;
+const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+function unlockVoice() {
+  if ("speechSynthesis" in window) {
+    try {
+      const warm = new SpeechSynthesisUtterance(" ");
+      warm.volume = 0;
+      window.speechSynthesis.speak(warm);
+    } catch (e) {
+      /* no voice on this device */
+    }
+  }
+  if (RECORDED_CLIPS.size && typeof Audio !== "undefined") {
+    try {
+      clipPlayer = clipPlayer || new Audio();
+      clipPlayer.src = SILENT_WAV;
+      clipPlayer.play().catch(() => {});
+    } catch (e) {
+      /* no audio element */
+    }
+  }
+}
+
+function speakTts(text, onDone, queue) {
+  if (!("speechSynthesis" in window)) return onDone?.();
+  try {
+    if (!queue) window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoice();
+    if (v) {
+      u.voice = v;
+      u.lang = v.lang;
+    }
+    // Good voices sound natural near normal speed; slowing them down is what
+    // makes them sound mechanical. Still a touch slow for following along.
+    u.rate = 0.95;
+    u.onend = () => onDone?.();
+    u.onerror = () => onDone?.();
+    window.speechSynthesis.speak(u);
+  } catch (e) {
+    onDone?.();
+  }
+}
+
+// Speaks one line; calls onDone once when it is finished or has failed.
+// `queue` lets "Switch sides." wait behind a line still being spoken.
+function speakLine(clipKey, text, onDone, queue = false) {
+  let done = false;
+  const finish = () => {
+    if (!done) {
+      done = true;
+      onDone?.();
+    }
+  };
+  if (clipKey && RECORDED_CLIPS.has(clipKey) && typeof Audio !== "undefined") {
+    try {
+      clipPlayer = clipPlayer || new Audio();
+      const p = clipPlayer;
+      if (queue && !p.paused && !p.ended) {
+        const prev = p.onended;
+        p.onended = () => {
+          prev?.();
+          speakLine(clipKey, text, onDone);
+        };
+        return;
+      }
+      p.onended = finish;
+      p.onerror = () => speakTts(text, finish);
+      p.src = `${import.meta.env.BASE_URL}voice/${clipKey}.mp3`;
+      p.play().catch(() => speakTts(text, finish));
+      return;
+    } catch (e) {
+      /* fall through to TTS */
+    }
+  }
+  speakTts(text, finish, queue);
+}
+
+function stopVoice() {
+  try {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (clipPlayer) {
+      clipPlayer.onended = null;
+      clipPlayer.pause();
+    }
+  } catch (e) {
+    /* nothing playing */
+  }
+}
 
 function getLast7Days() {
   const today = todayKey();
@@ -596,33 +719,22 @@ export default function TeamLineupApp() {
     await persistTeam(next);
   };
 
-  // A lift for the whole team. Deliberately carries nothing but an icon and a
-  // time, and awards no points — the moment it scores, people farm it.
-  const sendKudos = async (iconKey) => {
-    const next = {
-      ...team,
-      kudos: [{ id: `k${Date.now()}`, icon: iconKey, ts: Date.now() }, ...(team.kudos || [])].slice(0, 120),
-    };
-    await persistTeam(next);
-    setShowBurst(true);
-    setTimeout(() => setShowBurst(false), 1100);
-  };
-
   // Cheers go to the whole team rather than one number: the numbers are
   // made up, so nobody knows who #7 is, and cheering a stranger is awkward.
-  const sendCheer = async () => {
-    if (!cheerMsg.trim() || !me) return;
+  // Returns true when the cheer went out, so the tab can clear its icon pick.
+  const sendCheer = async (icon) => {
+    if ((!cheerMsg.trim() && !icon) || !me) return false;
     const today = todayKey();
     const myToday = team.cheers.filter((c) => c.from === me && dateKey(new Date(c.ts)) === today);
     if (myToday.length >= CHEER_DAILY_LIMIT) {
       showToast(`That's ${CHEER_DAILY_LIMIT} cheers today — send more tomorrow!`);
-      return;
+      return false;
     }
     const prevCount = team.cheers.filter((c) => c.from === me).length;
     const nextCount = prevCount + 1;
     const next = {
       ...team,
-      cheers: [{ from: me, to: "team", message: cheerMsg.trim(), ts: Date.now() }, ...team.cheers].slice(0, 500),
+      cheers: [{ from: me, to: "team", message: cheerMsg.trim(), ...(icon ? { icon } : {}), ts: Date.now() }, ...team.cheers].slice(0, 500),
       socialPoints: { ...team.socialPoints, [me]: (team.socialPoints[me] || 0) + 3 },
     };
     await persistTeam(next);
@@ -632,6 +744,7 @@ export default function TeamLineupApp() {
     const leveledUp = CROWN_TIERS.find((t) => t.min === nextCount);
     if (leveledUp) playCrownSound();
     showToast(leveledUp ? `👑 ${leveledUp.label} unlocked!` : "Cheer sent to the team!");
+    return true;
   };
 
   if (!ready) return <ShellFonts><LoadingScreen /></ShellFonts>;
@@ -683,8 +796,6 @@ export default function TeamLineupApp() {
               cheerMsg={cheerMsg}
               setCheerMsg={setCheerMsg}
               onSend={sendCheer}
-              kudos={team.kudos || []}
-              onSendKudos={sendKudos}
             />
           )}
           {tab === "challenge" && (
@@ -1680,12 +1791,8 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
 
   useEffect(() => {
     voiceOnRef.current = voiceOn;
-    if (!voiceOn && "speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch (e) {
-        /* nothing to cancel */
-      }
+    if (!voiceOn) {
+      stopVoice();
       // cancel() does not reliably fire onend, so muting must not strand a
       // move that is still waiting on the voice.
       spokeRef.current = true;
@@ -1709,25 +1816,13 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
 
     playTone(660, 0, 0.18, "triangle", 0.12);
 
-    if (voiceOnRef.current && "speechSynthesis" in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utter = new SpeechSynthesisUtterance(move.say);
-        utter.rate = 0.85;
-        utter.onend = () => {
-          spokeRef.current = true;
-          advance();
-        };
-        utter.onerror = () => {
-          spokeRef.current = true;
-          advance();
-        };
-        window.speechSynthesis.speak(utter);
-      } catch (e) {
-        spokeRef.current = true; // no voice here — the text carries it
-      }
+    if (voiceOnRef.current) {
+      speakLine(move.key, move.say, () => {
+        spokeRef.current = true;
+        advance();
+      });
     } else {
-      spokeRef.current = true;
+      spokeRef.current = true; // muted — the text carries it
     }
 
     const tick = setInterval(() => setCountdown((c) => Math.max(0, c - 1)), 1000);
@@ -1747,15 +1842,7 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
     if (move.switchSides) {
       midway = setTimeout(() => {
         playTone(880, 0, 0.14, "triangle", 0.1);
-        if (voiceOnRef.current && "speechSynthesis" in window) {
-          try {
-            const sw = new SpeechSynthesisUtterance("Switch sides.");
-            sw.rate = 0.85;
-            window.speechSynthesis.speak(sw); // queues behind the main line
-          } catch (e) {
-            /* text only */
-          }
-        }
+        if (voiceOnRef.current) speakLine("switch", "Switch sides.", null, true); // queues behind the main line
       }, (move.hold / 2) * 1000);
     }
 
@@ -1768,9 +1855,7 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
   }, [playingIndex, selectedMoves]);
 
   useEffect(() => {
-    return () => {
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    };
+    return () => stopVoice();
   }, []);
 
   const toggleMove = (key) => {
@@ -1844,18 +1929,9 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
               style={{ ...styles.primaryBtn, width: "100%", opacity: selectedMoves.length >= MIN_STRETCH_MOVES ? 1 : 0.4 }}
               disabled={selectedMoves.length < MIN_STRETCH_MOVES}
               onClick={() => {
-                // iOS only allows speech that begins inside a tap. This silent
-                // utterance unlocks speechSynthesis so the moves, which start
-                // from a timer, can speak at all.
-                if (voiceOn && "speechSynthesis" in window) {
-                  try {
-                    const warm = new SpeechSynthesisUtterance(" ");
-                    warm.volume = 0;
-                    window.speechSynthesis.speak(warm);
-                  } catch (e) {
-                    /* no voice on this device */
-                  }
-                }
+                // iOS only allows speech that begins inside a tap. Unlocking
+                // here lets the moves, which start from a timer, speak at all.
+                if (voiceOn) unlockVoice();
                 setPlayingIndex(0);
               }}
             >
@@ -1935,85 +2011,116 @@ function StretchPlayer({ avatarStyle, onComplete, onClose }) {
   );
 }
 
-function KudosBar({ kudos, onSend }) {
-  const today = todayKey();
-  const todays = kudos.filter((k) => dateKey(new Date(k.ts)) === today).slice(0, 14);
-  const iconOf = (key) => (KUDOS.find((k) => k.key === key) || {}).icon || "";
-  return (
-    <div style={{ ...styles.card, marginBottom: 14 }}>
-      <div style={{ color: "var(--chalk)", fontSize: 19, fontWeight: 700, marginBottom: 2 }}>Send the team a lift</div>
-      <div style={{ color: "var(--chalk-dim)", fontSize: 14, marginBottom: 14, lineHeight: 1.5 }}>
-        Goes to the whole team. Nobody sees who sent it, and it isn't counted for anything.
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {KUDOS.map((k) => (
-          <button key={k.key} onClick={() => onSend(k.key)} style={styles.kudosBtn}>
-            <span style={{ fontSize: 30, lineHeight: 1 }}>{k.icon}</span>
-            <span style={{ fontSize: 12, color: "var(--chalk-dim)", marginTop: 5 }}>{k.label}</span>
-          </button>
-        ))}
-      </div>
-      <div style={styles.kudosSky}>
-        {todays.length === 0 ? (
-          <span style={{ color: "var(--chalk-dim)", fontSize: 14 }}>Quiet so far today.</span>
-        ) : (
-          todays.map((k, i) => (
-            <span
-              key={k.id}
-              style={{ fontSize: 26, animation: `kudosBob 2.6s ease-in-out ${(i % 7) * 0.22}s infinite alternate` }}
-            >
-              {iconOf(k.icon)}
-            </span>
-          ))
-        )}
-      </div>
-    </div>
-  );
+const CHEER_MAX = 120;
+
+function timeAgo(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
 }
 
-function CheerTab({ me, cheers, cheerMsg, setCheerMsg, onSend, kudos, onSendKudos }) {
+function CheerTab({ me, cheers, cheerMsg, setCheerMsg, onSend }) {
+  // Local on purpose: leaving the tab drops the pick, so it starts fresh.
+  const [icon, setIcon] = useState(null);
+  const [focused, setFocused] = useState(false);
   const today = todayKey();
   const sentToday = cheers.filter((c) => c.from === me && dateKey(new Date(c.ts)) === today).length;
   const left = Math.max(CHEER_DAILY_LIMIT - sentToday, 0);
+  const canSend = (cheerMsg.trim() || icon) && left > 0;
+  const iconOf = (key) => (KUDOS.find((k) => k.key === key) || {}).icon || "";
+  const send = async () => {
+    if (await onSend(icon)) setIcon(null);
+  };
   return (
     <div>
-      <KudosBar kudos={kudos} onSend={onSendKudos} />
-      <div style={{ ...styles.card, marginBottom: 14 }}>
-        <div style={{ fontSize: 20, marginBottom: 4 }}>👑 How Crowns Work</div>
-        <div style={{ color: "var(--chalk-dim)", fontSize: 14, lineHeight: 1.6 }}>
-          Every cheer you send to the team counts. Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> earns you a bigger crown —
-          check the Ranking tab to see your current tier and how close you are to the next one.
-        </div>
-      </div>
       <div style={styles.card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
           <div style={{ color: "var(--chalk)", fontSize: 16, fontWeight: 600 }}>📣 Cheer on the team</div>
           <div className="lineup-mono" style={{ color: "var(--chalk-dim)", fontSize: 13 }}>{left} left today</div>
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {KUDOS.map((k) => {
+            const on = icon === k.key;
+            return (
+              <button
+                key={k.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setIcon(on ? null : k.key)}
+                style={{ ...styles.kudosBtn, borderColor: on ? "var(--amber)" : "var(--line)", background: on ? "rgba(242,169,59,0.15)" : "var(--bg-elev2)" }}
+              >
+                <span style={{ fontSize: 26, lineHeight: 1 }}>{k.icon}</span>
+                <span style={{ fontSize: 11, color: on ? "var(--amber)" : "var(--chalk-dim)", marginTop: 4 }}>{k.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
           {QUICK_CHEERS.map((q) => (
-            <button key={q} onClick={() => setCheerMsg(q)} style={styles.quickChip}>
+            <button key={q} onClick={() => setCheerMsg(q)} style={{ ...styles.quickChip, borderColor: cheerMsg === q ? "var(--sky)" : "var(--line)", color: cheerMsg === q ? "var(--sky)" : "var(--chalk-dim)" }}>
               {q}
             </button>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input value={cheerMsg} onChange={(e) => setCheerMsg(e.target.value)} placeholder="Say something to the team" style={{ ...styles.input, flex: 1 }} />
-          <button onClick={onSend} disabled={!cheerMsg.trim() || left === 0} style={{ ...styles.primaryBtn, opacity: cheerMsg.trim() && left > 0 ? 1 : 0.4 }}>Send</button>
+        <div style={{ ...styles.composer, borderColor: focused ? "var(--amber)" : "var(--line)", boxShadow: focused ? "0 0 0 3px rgba(242,169,59,0.15)" : "none" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+            {icon && (
+              <button type="button" onClick={() => setIcon(null)} aria-label="Remove icon" style={styles.composerIcon}>
+                {iconOf(icon)}
+                <span style={styles.composerIconX}>×</span>
+              </button>
+            )}
+            <textarea
+              value={cheerMsg}
+              onChange={(e) => setCheerMsg(e.target.value.slice(0, CHEER_MAX))}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              placeholder="Write your own cheer…"
+              rows={2}
+              style={styles.composerText}
+            />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+            <span className="lineup-mono" style={{ fontSize: 12, color: cheerMsg.length > CHEER_MAX - 15 ? "var(--amber)" : "var(--chalk-dim)" }}>
+              {cheerMsg.length}/{CHEER_MAX}
+            </span>
+            <button onClick={send} disabled={!canSend} style={{ ...styles.primaryBtn, minHeight: 44, padding: "10px 18px", fontSize: 16, borderRadius: 22, opacity: canSend ? 1 : 0.4 }}>
+              {icon ? iconOf(icon) : "📣"} Send to the team
+            </button>
+          </div>
         </div>
+        {left === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginTop: 8, textAlign: "center" }}>That's today's 3 — more tomorrow!</div>}
+      </div>
+      <div style={{ color: "var(--chalk-dim)", fontSize: 13, lineHeight: 1.5, margin: "10px 4px 0" }}>
+        👑 Every <b style={{ color: "var(--chalk)" }}>5 cheers</b> earns you a bigger crown — see your tier in the Ranking tab.
       </div>
 
       <div style={{ color: "var(--chalk-dim)", fontSize: 13, margin: "20px 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>Recent Cheers</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {cheers.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>No cheers yet. Send the first one!</div>}
-        {cheers.slice(0, 20).map((c, i) => (
-          <div key={i} style={styles.cheerRow}>
-            <span style={{ color: "var(--sky)", fontWeight: 600 }}>#{c.from}</span>
-            <span style={{ color: "var(--chalk-dim)" }}> → </span>
-            <span style={{ color: "var(--chalk)", fontWeight: 600 }}>{c.to === "team" ? "Team" : `#${c.to}`}</span>
-            <div style={{ color: "var(--chalk-dim)", fontSize: 15, marginTop: 2 }}>{c.message}</div>
-          </div>
-        ))}
+        {cheers.slice(0, 20).map((c, i) => {
+          const mine = c.from === me;
+          return (
+            <div key={i} style={{ ...styles.cheerRow, display: "flex", gap: 12, alignItems: "flex-start", borderColor: mine ? "rgba(242,169,59,0.35)" : "var(--line)" }}>
+              <div style={styles.cheerBadge}>{c.icon ? iconOf(c.icon) : "📣"}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {/* No sender number: send a cheer next to a friend and "#68" pops up
+                    right then, which hands them your number — and with it your
+                    ranking and wall posts. Crowns still count by number underneath. */}
+                <div style={{ fontSize: 13, color: "var(--chalk-dim)" }}>
+                  <span style={{ color: mine ? "var(--amber)" : "var(--sky)", fontWeight: 600 }}>{mine ? "You" : "A teammate"}</span>
+                  {" → "}
+                  {c.to === "team" ? "Team" : `#${c.to}`}
+                  {c.ts ? ` · ${timeAgo(c.ts)}` : ""}
+                </div>
+                {c.message && <div style={{ color: "var(--chalk)", fontSize: 16, marginTop: 3, lineHeight: 1.4, overflowWrap: "anywhere" }}>{c.message}</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2906,7 +3013,7 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
       <div style={{ ...styles.card, marginTop: 14 }}>
         <div style={{ color: "var(--chalk)", fontSize: 17, fontWeight: 700, marginBottom: 4 }}>📣 Team Wall</div>
         <div style={{ color: "var(--chalk-dim)", fontSize: 13, marginBottom: 12 }}>
-          A public space for the whole team — post a shoutout, a goal for the week, anything. Everyone sees it, and it's signed with your number (not anonymous).
+          A public space for the whole team — post a shoutout, a goal for the week, anything. Everyone on the team can read it; posts show as "A teammate", not your number.
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <input
@@ -2922,7 +3029,7 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {teamWall.length === 0 && <div style={{ color: "var(--chalk-dim)", fontSize: 15 }}>Nothing posted yet. Be the first!</div>}
           {teamWall.slice(0, 30).map((post) => (
-            <WallPost key={post.id} post={post} avatarStyles={avatarStyles} onReply={(reply) => onReplyWall(post.id, reply)} />
+            <WallPost key={post.id} post={post} me={me} onReply={(reply) => onReplyWall(post.id, reply)} />
           ))}
         </div>
       </div>
@@ -3023,11 +3130,13 @@ function TeamTab({ schedule, coachInbox, onAddGame, onAddResult, onSendCoachMess
   );
 }
 
-function WallPost({ post, avatarStyles, onReply }) {
+// Same reason as cheers: a number or a custom avatar next to a post you just
+// wrote hands your number to whoever is standing beside you.
+const whoLabel = (from, me) => (from === me ? "You" : "A teammate");
+
+function WallPost({ post, me, onReply }) {
   const [showReply, setShowReply] = useState(false);
   const [replyMsg, setReplyMsg] = useState("");
-  const s = avatarStyles?.[post.from] || {};
-
   const submit = () => {
     if (!replyMsg.trim()) return;
     onReply(replyMsg);
@@ -3037,25 +3146,18 @@ function WallPost({ post, avatarStyles, onReply }) {
 
   return (
     <div style={{ ...styles.cheerRow, display: "flex", gap: 10, alignItems: "flex-start" }}>
-      <PlayerAvatar number={post.from} size={34} glasses={s.glasses} furStyle={s.furStyle} bow={s.bow} bowColor={s.bowColor} skinTone={s.skinTone} hairColor={s.hairColor} sockColor={s.sockColor} color={s.jerseyColor || "var(--turf-bright)"} />
       <div style={{ flex: 1 }}>
-        <span style={{ color: "var(--sky)", fontWeight: 600, fontSize: 14 }}>#{post.from}</span>
+        <span style={{ color: "var(--sky)", fontWeight: 600, fontSize: 14 }}>{whoLabel(post.from, me)}</span>
         <div style={{ color: "var(--chalk)", fontSize: 15, marginTop: 2 }}>{post.message}</div>
 
         {(post.replies || []).length > 0 && (
           <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: "2px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
-            {post.replies.map((r) => {
-              const rs = avatarStyles?.[r.from] || {};
-              return (
-                <div key={r.id} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                  <PlayerAvatar number={r.from} size={24} glasses={rs.glasses} furStyle={rs.furStyle} bow={rs.bow} bowColor={rs.bowColor} skinTone={rs.skinTone} hairColor={rs.hairColor} sockColor={rs.sockColor} color={rs.jerseyColor || "var(--turf-bright)"} />
-                  <div style={{ fontSize: 14 }}>
-                    <span style={{ color: "var(--sky)", fontWeight: 600 }}>#{r.from}</span>{" "}
-                    <span style={{ color: "var(--chalk-dim)" }}>{r.message}</span>
-                  </div>
-                </div>
-              );
-            })}
+            {post.replies.map((r) => (
+              <div key={r.id} style={{ fontSize: 14 }}>
+                <span style={{ color: "var(--sky)", fontWeight: 600 }}>{whoLabel(r.from, me)}</span>{" "}
+                <span style={{ color: "var(--chalk-dim)" }}>{r.message}</span>
+              </div>
+            ))}
           </div>
         )}
 
@@ -3266,6 +3368,11 @@ const styles = {
   moodBtn: { border: "1px solid var(--line)", borderRadius: 12, padding: "14px 18px", fontSize: 16, fontWeight: 600, cursor: "pointer", minHeight: 52 },
   chip: { border: "1px solid var(--line)", borderRadius: 22, padding: "10px 16px", fontSize: 15, background: "transparent", cursor: "pointer", minHeight: 42 },
   quickChip: { border: "1px solid var(--line)", borderRadius: 22, padding: "9px 14px", fontSize: 14, background: "var(--bg-elev2)", color: "var(--chalk-dim)", cursor: "pointer", minHeight: 40 },
+  composer: { background: "var(--bg-elev2)", borderWidth: 1, borderStyle: "solid", borderRadius: 16, padding: "12px 12px 10px", transition: "border-color 0.15s, box-shadow 0.15s" },
+  composerText: { flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", resize: "none", color: "var(--chalk)", fontSize: 16, lineHeight: 1.45, fontFamily: "inherit", padding: "4px 2px" },
+  composerIcon: { position: "relative", flexShrink: 0, width: 46, height: 46, borderRadius: 12, border: "1px solid rgba(242,169,59,0.4)", background: "rgba(242,169,59,0.12)", fontSize: 26, lineHeight: 1, cursor: "pointer", padding: 0 },
+  composerIconX: { position: "absolute", top: -6, right: -6, width: 18, height: 18, borderRadius: 9, background: "var(--bg-elev)", border: "1px solid var(--line)", color: "var(--chalk-dim)", fontSize: 12, lineHeight: "16px" },
+  cheerBadge: { flexShrink: 0, width: 40, height: 40, borderRadius: 20, background: "var(--bg-elev2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 },
   cheerRow: { background: "var(--bg-elev)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 14px", fontSize: 15 },
   gameRow: { background: "var(--bg-elev2)", border: "1px solid var(--line)", borderRadius: 12, padding: "14px 14px", marginBottom: 10 },
   homeAwayTag: { fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 10, letterSpacing: 0.5 },
@@ -3308,30 +3415,19 @@ const styles = {
   },
   toast: { position: "absolute", top: 16, left: "50%", transform: "translateX(-50%)", background: "var(--turf-bright)", color: "#10151A", padding: "12px 20px", borderRadius: 22, fontSize: 15, fontWeight: 700, boxShadow: "0 4px 14px rgba(0,0,0,0.3)", zIndex: 50, maxWidth: "90%", textAlign: "center" },
   kudosBtn: {
-    flex: "1 1 88px",
-    minWidth: 88,
-    minHeight: 84,
+    flex: "1 1 0",
+    minWidth: 0,
+    minHeight: 64,
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    background: "var(--bg-elev2)",
-    border: "1px solid var(--line)",
-    borderRadius: 14,
-    padding: "12px 8px",
-    cursor: "pointer",
-  },
-  kudosSky: {
-    marginTop: 16,
-    minHeight: 56,
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "rgba(127,168,201,0.07)",
+    borderWidth: 1,
+    borderStyle: "solid",
     borderRadius: 12,
-    padding: "10px 12px",
+    padding: "8px 2px",
+    cursor: "pointer",
+    touchAction: "manipulation",
   },
   questTrail: {
     position: "relative",
